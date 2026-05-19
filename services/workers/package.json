@@ -10,6 +10,8 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "bullmq": "^5.76.8",
+    "ioredis": "^5.10.1",
     "yahoo-finance2": "^3.14.0"
   }
 }

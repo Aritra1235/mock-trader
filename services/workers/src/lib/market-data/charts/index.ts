@@ -1,14 +1,27 @@
 import { yahooFinance } from "../../yahoo";
-import type { Interval } from "../../../types/yahoo-finance";
+import { putChart } from "../../redis/charts";
+import type { ChartInterval, ChartRange, CachedChart } from "../../../types/chart";
+import { resolveRange } from "./range-resolver";
 
-async function getChartData(ticker: string, period1: Date, period2: Date, interval: Interval) {
+async function getChart(
+  ticker: string,
+  range: ChartRange,
+  interval: ChartInterval
+): Promise<CachedChart> {
   try {
-    const chartData = await yahooFinance.chart(ticker, { period1, period2, interval });
-    return chartData;
+    const { period1, period2 } = resolveRange(range);
+
+    const chartData = await yahooFinance.chart(ticker, {
+      period1,
+      period2,
+      interval,
+    });
+
+    return await putChart(ticker, range, interval, chartData);
   } catch (error) {
     console.error(`Error fetching chart data for ${ticker}:`, error);
     throw error;
   }
 }
 
-export { getChartData };
+export { getChart };
