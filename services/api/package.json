@@ -1,12 +1,31 @@
 {
   "name": "api",
-  "version": "1.0.50",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "bun run --watch src/index.ts"
+    "dev": "bun run --watch src/index.ts",
+    "start": "bun run src/index.ts",
+    "worker:ingest": "bun run workers/price-ingest.ts",
+    "worker:catalog": "bun run workers/catalog-sync.ts",
+    "paytm:login-url": "bun run scripts/paytm-login-url.ts",
+    "paytm:exchange-token": "bun run scripts/paytm-exchange-token.ts",
+    "paytm:session": "bun run scripts/paytm-session-status.ts",
+    "verify:paytm": "bun run scripts/verify-paytm-market-data.ts",
+    "test": "bun test tests",
+    "test:unit": "bun test tests/unit",
+    "test:integration": "bun test tests/integration"
   },
   "dependencies": {
-    "elysia": "latest"
+    "@elysia/openapi": "^1.4.15",
+    "@elysia/opentelemetry": "^1.4.12",
+    "@opentelemetry/exporter-trace-otlp-proto": "^0.219.0",
+    "@opentelemetry/sdk-trace-node": "^2.8.0",
+    "dotenv": "^17.4.2",
+    "elysia": "latest",
+    "querystring": "^0.2.1",
+    "redis": "^4.7.0",
+    "request": "^2.88.2"
   },
   "devDependencies": {
     "bun-types": "latest"

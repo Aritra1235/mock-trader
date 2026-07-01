@@ -1,0 +1,649 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>API Reference — Mock Trader</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            base: '#0b1117',
+            surface: '#121a24',
+            border: '#1e293b',
+            muted: '#8b95a5',
+            text: '#e2e8f0',
+            accent: '#60a5fa',
+            green: '#22c55e',
+            orange: '#fb923c',
+            red: '#f87171',
+            purple: '#a78bfa',
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
+          },
+        },
+      },
+    };
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    * { scrollbar-width: thin; scrollbar-color: #1e293b transparent; }
+    body { background: #0b1117; }
+    html { scroll-behavior: smooth; }
+    ::selection { background: #3b82f6; color: #fff; }
+    .sidebar-link { transition: all 0.12s ease; border-left: 2px solid transparent; }
+    .sidebar-link:hover { background: #1e293b; }
+    h2[id]::before, h3[id]::before { content: ''; display: block; height: 64px; margin: -64px 0 0; }
+    pre::-webkit-scrollbar { height: 6px; }
+    pre::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+    code { font-size: 0.875em; }
+    .method-badge { display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; padding: 0 8px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em; line-height: 1.6; }
+    .method-GET { background: rgba(34,197,94,0.15); color: #22c55e; }
+    .method-WS  { background: rgba(167,139,250,0.15); color: #a78bfa; }
+  </style>
+</head>
+<body class="font-sans text-text antialiased">
+  <nav class="fixed top-0 z-50 flex h-14 w-full items-center border-b border-border bg-base/95 backdrop-blur-sm">
+    <div class="mx-auto flex w-full max-w-6xl items-center justify-between px-6">
+      <a href="/docs/index.html" class="flex items-center gap-2 text-base font-semibold tracking-tight">
+        <span class="flex h-7 w-7 items-center justify-center rounded-md bg-accent text-xs font-bold text-base">MT</span>
+        <span>Mock Trader</span>
+      </a>
+      <div class="flex items-center gap-1 text-sm">
+        <a href="/docs/api" class="rounded-lg px-3 py-1.5 font-medium text-accent bg-surface">API</a>
+        <a href="/docs/dev" class="rounded-lg px-3 py-1.5 font-medium text-muted hover:bg-surface hover:text-text">Dev</a>
+        <a href="/docs/deploy" class="rounded-lg px-3 py-1.5 font-medium text-muted hover:bg-surface hover:text-text">Deploy</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="mx-auto flex w-full max-w-6xl pt-14">
+    <aside class="hidden w-60 shrink-0 border-r border-border px-3 py-8 lg:block">
+      <nav class="sticky top-20 flex flex-col gap-1 text-sm">
+        <span class="mb-1 px-3 text-xs font-semibold uppercase tracking-widest text-muted">Endpoints</span>
+        <a href="#get-root" class="sidebar-link flex items-center gap-2 rounded-md px-3 py-1.5 text-muted hover:text-text">
+          <span class="method-badge method-GET">GET</span>
+          <span class="font-mono text-xs">/</span>
+        </a>
+        <a href="#get-health" class="sidebar-link flex items-center gap-2 rounded-md px-3 py-1.5 text-muted hover:text-text">
+          <span class="method-badge method-GET">GET</span>
+          <span class="font-mono text-xs">/health</span>
+        </a>
+        <a href="#get-ready" class="sidebar-link flex items-center gap-2 rounded-md px-3 py-1.5 text-muted hover:text-text">
+          <span class="method-badge method-GET">GET</span>
+          <span class="font-mono text-xs">/ready</span>
+        </a>
+        <a href="#get-stats" class="sidebar-link flex items-center gap-2 rounded-md px-3 py-1.5 text-muted hover:text-text">
+          <span class="method-badge method-GET">GET</span>
+          <span class="font-mono text-xs">/v1/market/stats</span>
+        </a>
+        <a href="#get-instruments-search" class="sidebar-link flex items-center gap-2 rounded-md px-3 py-1.5 text-muted hover:text-text">
+          <span class="method-badge method-GET">GET</span>
+          <span class="font-mono text-xs">/instruments/search</span>
+        </a>
+        <a href="#get-instruments-id" class="sidebar-link flex items-center gap-2 rounded-md px-3 py-1.5 text-muted hover:text-text">
+          <span class="method-badge method-GET">GET</span>
+          <span class="font-mono text-xs">/instruments/:id</span>
+        </a>
+        <a href="#get-quotes" class="sidebar-link flex items-center gap-2 rounded-md px-3 py-1.5 text-muted hover:text-text">
+          <span class="method-badge method-GET">GET</span>
+          <span class="font-mono text-xs">/quotes</span>
+        </a>
+        <a href="#get-candles" class="sidebar-link flex items-center gap-2 rounded-md px-3 py-1.5 text-muted hover:text-text">
+          <span class="method-badge method-GET">GET</span>
+          <span class="font-mono text-xs">/candles/:id</span>
+        </a>
+        <a href="#get-provider-chart" class="sidebar-link flex items-center gap-2 rounded-md px-3 py-1.5 text-muted hover:text-text">
+          <span class="method-badge method-GET">GET</span>
+          <span class="font-mono text-xs">/provider/chart</span>
+        </a>
+        <a href="#ws-market" class="sidebar-link flex items-center gap-2 rounded-md px-3 py-1.5 text-muted hover:text-text">
+          <span class="method-badge method-WS">WS</span>
+          <span class="font-mono text-xs">/ws/market</span>
+        </a>
+        <span class="mt-4 mb-1 px-3 text-xs font-semibold uppercase tracking-widest text-muted">Types</span>
+        <a href="#type-instrument" class="sidebar-link rounded-md px-3 py-1.5 text-muted hover:text-text">InstrumentRecord</a>
+        <a href="#type-quote" class="sidebar-link rounded-md px-3 py-1.5 text-muted hover:text-text">QuotePayload</a>
+        <a href="#type-quote-env" class="sidebar-link rounded-md px-3 py-1.5 text-muted hover:text-text">QuoteEnvelope</a>
+        <a href="#type-candle" class="sidebar-link rounded-md px-3 py-1.5 text-muted hover:text-text">CandleRecord</a>
+      </nav>
+    </aside>
+
+    <div class="min-w-0 flex-1 px-6 py-10 pb-32">
+      <h1 class="text-3xl font-extrabold tracking-tight">API Reference</h1>
+      <p class="mt-2 leading-relaxed text-muted">
+        Elysia HTTP + WebSocket server. Bun runtime. Redis backplane.
+        Source: <code class="rounded bg-surface px-1.5 py-0.5 font-mono">src/app/buildApp.ts</code>.
+      </p>
+
+      <!-- ====== GET / ====== -->
+      <section id="get-root" class="mt-14">
+        <div class="flex items-center gap-3">
+          <span class="method-badge method-GET">GET</span>
+          <code class="rounded bg-surface px-3 py-1 font-mono text-base font-semibold">/</code>
+        </div>
+        <p class="mt-3 leading-relaxed text-muted">
+          Service root. Returns basic metadata and a link to the docs.
+        </p>
+
+        <h3 class="mt-5 text-sm font-semibold text-muted">Response</h3>
+        <pre class="mt-2 overflow-x-auto rounded-xl border border-border bg-base p-4 font-mono text-sm leading-relaxed">{
+  "service": "mock-trader-api",
+  "status": "ok",
+  "docs": "/docs/index.html",
+  "websocket": "/ws/market"
+}</pre>
+      </section>
+
+      <!-- ====== GET /health ====== -->
+      <section id="get-health" class="mt-14">
+        <div class="flex items-center gap-3">
+          <span class="method-badge method-GET">GET</span>
+          <code class="rounded bg-surface px-3 py-1 font-mono text-base font-semibold">/health</code>
+        </div>
+        <p class="mt-3 leading-relaxed text-muted">
+          Lightweight process health. No dependency checks.
+          Use <code class="rounded bg-surface px-1.5 py-0.5 font-mono">/ready</code> for deep verification.
+        </p>
+
+        <h3 class="mt-5 text-sm font-semibold text-muted">Response</h3>
+        <pre class="mt-2 overflow-x-auto rounded-xl border border-border bg-base p-4 font-mono text-sm leading-relaxed">{
+  "status": "ok",
+  "service": "mock-trader-api"
+}</pre>
+      </section>
+
+      <!-- ====== GET /ready ====== -->
+      <section id="get-ready" class="mt-14">
+        <div class="flex items-center gap-3">
+          <span class="method-badge method-GET">GET</span>
+          <code class="rounded bg-surface px-3 py-1 font-mono text-base font-semibold">/ready</code>
+        </div>
+        <p class="mt-3 leading-relaxed text-muted">
+          Deep readiness check. Verifies Redis, subscription leases, Paytm
+          session, and catalog count. Returns 503 when any check fails.
+        </p>
+
+        <h3 class="mt-5 text-sm font-semibold text-muted">Response — 200 OK</h3>
+        <pre class="mt-2 overflow-x-auto rounded-xl border border-border bg-base p-4 font-mono text-sm leading-relaxed">{
+  "ready": true,
+  "checks": {
+    "redis": true,
+    "subscriptionLeases": true,
+    "paytmSession": true,
+    "catalog": true
+  },
+  "service": "mock-trader-api",
+  "catalogCount": 12483,
+  "catalogSyncedAt": "2026-06-28T18:00:00.000Z",
+  "websocketPath": "/ws/market"
+}</pre>
+
+        <h3 class="mt-5 text-sm font-semibold text-muted">Response — 503 Service Unavailable</h3>
+        <pre class="mt-2 overflow-x-auto rounded-xl border border-border bg-base p-4 font-mono text-sm leading-relaxed">{
+  "ready": false,
+  "checks": {
+    "redis": true,
+    "subscriptionLeases": true,
+    "paytmSession": false,
+    "catalog": true
+  },
+  "service": "mock-trader-api",
+  "catalogCount": 12483,
+  "catalogSyncedAt": "2026-06-28T18:00:00.000Z",
+  "websocketPath": "/ws/market"
+}</pre>
+
+        <table class="mt-4 w-full border-collapse text-sm">
+          <thead><tr class="text-muted text-xs"><th class="px-3 py-1.5 text-left font-semibold">Field</th><th class="px-3 py-1.5 text-left font-semibold">Type</th><th class="px-3 py-1.5 text-left font-semibold">Source</th></tr></thead>
+          <tbody class="divide-y divide-border">
+            <tr><td class="px-3 py-1.5 font-mono text-xs">ready</td><td class="px-3 py-1.5 text-xs">boolean</td><td class="px-3 py-1.5 text-xs text-muted">All checks pass.</td></tr>
+            <tr><td class="px-3 py-1.5 font-mono text-xs">checks.redis</td><td class="px-3 py-1.5 text-xs">boolean</td><td class="px-3 py-1.5 text-xs text-muted">Redis PONG via <code class="rounded bg-surface px-1 font-mono">store.ping()</code>.</td></tr>
+            <tr><td class="px-3 py-1.5 font-mono text-xs">checks.subscriptionLeases</td><td class="px-3 py-1.5 text-xs">boolean</td><td class="px-3 py-1.5 text-xs text-muted">Lease repo PONG.</td></tr>
+            <tr><td class="px-3 py-1.5 font-mono text-xs">checks.paytmSession</td><td class="px-3 py-1.5 text-xs">boolean</td><td class="px-3 py-1.5 text-xs text-muted"><code class="rounded bg-surface px-1 font-mono">hasPublicToken && hasReadToken</code>.</td></tr>
+            <tr><td class="px-3 py-1.5 font-mono text-xs">checks.catalog</td><td class="px-3 py-1.5 text-xs">boolean</td><td class="px-3 py-1.5 text-xs text-muted"><code class="rounded bg-surface px-1 font-mono">catalogCount > 0</code>.</td></tr>
+            <tr><td class="px-3 py-1.5 font-mono text-xs">catalogCount</td><td class="px-3 py-1.5 text-xs">number</td><td class="px-3 py-1.5 text-xs text-muted">Loaded instrument count.</td></tr>
+            <tr><td class="px-3 py-1.5 font-mono text-xs">catalogSyncedAt</td><td class="px-3 py-1.5 text-xs">string | null</td><td class="px-3 py-1.5 text-xs text-muted">ISO 8601 of last sync.</td></tr>
+            <tr><td class="px-3 py-1.5 font-mono text-xs">websocketPath</td><td class="px-3 py-1.5 text-xs">string</td><td class="px-3 py-1.5 text-xs text-muted"><code class="rounded bg-surface px-1 font-mono">/ws/market</code>.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- ====== GET /v1/market/stats ====== -->
+      <section id="get-stats" class="mt-14">
+        <div class="flex items-center gap-3">
+          <span class="method-badge method-GET">GET</span>
+          <code class="rounded bg-surface px-3 py-1 font-mono text-base font-semibold">/v1/market/stats</code>
+        </div>
+        <p class="mt-3 leading-relaxed text-muted">
+          Catalog metadata and upstream configuration.
+        </p>
+
+        <h3 class="mt-5 text-sm font-semibold text-muted">Response</h3>
+        <pre class="mt-2 overflow-x-auto rounded-xl border border-border bg-base p-4 font-mono text-sm leading-relaxed">{
+  "catalogCount": 12483,
+  "catalogSyncedAt": "2026-06-28T18:00:00.000Z",
+  "upstreamMode": "QUOTE",
+  "websocketPath": "/ws/market"
+}</pre>
+      </section>
+
+      <!-- ====== GET /v1/market/instruments/search ====== -->
+      <section id="get-instruments-search" class="mt-14">
+        <div class="flex items-center gap-3">
+          <span class="method-badge method-GET">GET</span>
+          <code class="rounded bg-surface px-3 py-1 font-mono text-base font-semibold">/v1/market/instruments/search</code>
+        </div>
+        <p class="mt-3 leading-relaxed text-muted">
+          Search the local Paytm security-master snapshot. Returns scored
+          results sorted by relevance.
+        </p>
+
+        <h3 class="mt-5 text-sm font-semibold text-muted">Query parameters</h3>
+        <table class="mt-2 w-full border-collapse text-sm">
+          <thead><tr class="text-muted text-xs"><th class="px-3 py-1.5 text-left font-semibold">Param</th><th class="px-3 py-1.5 text-left font-semibold">Type</th><th class="px-3 py-1.5 text-left font-semibold">Default</th></tr></thead>
+          <tbody class="divide-y divide-border">
+            <tr><td class="px-3 py-1.5 font-mono text-xs">q</td><td class="px-3 py-1.5 text-xs">string</td><td class="px-3 py-1.5 text-xs text-muted">—</td></tr>
+            <tr><td class="px-3 py-1.5 font-mono text-xs">limit</td><td class="px-3 py-1.5 text-xs">number</td><td class="px-3 py-1.5 text-xs text-muted">20</td></tr>
+            <tr><td class="px-3 py-1.5 font-mono text-xs">exchange</td><td class="px-3 py-1.5 text-xs">string</td><td class="px-3 py-1.5 text-xs text-muted">all</td></tr>
+            <tr><td class="px-3 py-1.5 font-mono text-xs">scripType</td><td class="px-3 py-1.5 text-xs">string</td><td class="px-3 py-1.5 text-xs text-muted">all</td></tr>
+          </tbody>
+        </table>
+
+        <h3 class="mt-5 text-sm font-semibold text-muted">Response — <code class="text-green">InstrumentRecord[]</code></h3>
+        <p class="text-sm text-muted">Returns an array of <a href="#type-instrument" class="text-accent underline">InstrumentRecord</a> objects directly (no wrapper).</p>
+
+        <pre class="mt-2 overflow-x-auto rounded-xl border border-border bg-base p-4 font-mono text-sm leading-relaxed">[
+  {
+    "instrumentKey": "NSE:EQUITY:3456",
+    "securityId": "3456",
+    "symbol": "RELIANCE",
+    "name": "Reliance Industries",
+    "series": null,
+    "exchange": "NSE",
+    "segment": "C",
+    "instrumentType": "EQ",
+    "scripType": "EQUITY",
+    "tickSize": 0.05,
+    "lotSize": 1,
+    "upperLimit": 2000,
+    "lowerLimit": 1000,
+    "expiryDate": null,
+    "strikePrice": null,
+    "freezeQuantity": null
+  }
+]</pre>
+      </section>
+
+      <!-- ====== GET /v1/market/instruments/:id ====== -->
+      <section id="get-instruments-id" class="mt-14">
+        <div class="flex items-center gap-3">
+          <span class="method-badge method-GET">GET</span>
+          <code class="rounded bg-surface px-3 py-1 font-mono text-base font-semibold">/v1/market/instruments/:id</code>
+        </div>
+        <p class="mt-3 leading-relaxed text-muted">
+          Resolve a single instrument by instrument key (<code class="rounded bg-surface px-1.5 py-0.5 font-mono">NSE:EQUITY:3456</code>),
+          security ID (<code class="rounded bg-surface px-1.5 py-0.5 font-mono">3456</code>), or symbol (<code class="rounded bg-surface px-1.5 py-0.5 font-mono">RELIANCE</code>).
+        </p>
+
+        <h3 class="mt-5 text-sm font-semibold text-muted">Response — 200 OK</h3>
+        <p class="text-sm text-muted">Returns a single <a href="#type-instrument" class="text-accent underline">InstrumentRecord</a>.</p>
+
+        <h3 class="mt-5 text-sm font-semibold text-muted">Response — 404</h3>
+        <pre class="mt-2 overflow-x-auto rounded-xl border border-border bg-base p-4 font-mono text-sm leading-relaxed">{
+  "error": "instrument not found"
+}</pre>
+      </section>
+
+      <!-- ====== GET /v1/market/quotes ====== -->
+      <section id="get-quotes" class="mt-14">
+        <div class="flex items-center gap-3">
+          <span class="method-badge method-GET">GET</span>
+          <code class="rounded bg-surface px-3 py-1 font-mono text-base font-semibold">/v1/market/quotes</code>
+        </div>
+        <p class="mt-3 leading-relaxed text-muted">
+          Return cached quotes for instruments. Stale quotes are refreshed
+          through Paytm. Each result envelopes the instrument record,
+          the quote payload (null if never seen), and a staleness flag.
+        </p>
+
+        <h3 class="mt-5 text-sm font-semibold text-muted">Query parameters</h3>
+        <table class="mt-2 w-full border-collapse text-sm">
+          <thead><tr class="text-muted text-xs"><th class="px-3 py-1.5 text-left font-semibold">Param</th><th class="px-3 py-1.5 text-left font-semibold">Type</th><th class="px-3 py-1.5 text-left font-semibold">Default</th></tr></thead>
+          <tbody class="divide-y divide-border">
+            <tr><td class="px-3 py-1.5 font-mono text-xs">ids</td><td class="px-3 py-1.5 text-xs">string</td><td class="px-3 py-1.5 text-xs text-muted">Comma-separated symbols, security IDs, or instrument keys.</td></tr>
+            <tr><td class="px-3 py-1.5 font-mono text-xs">mode</td><td class="px-3 py-1.5 text-xs">"LTP" | "QUOTE" | "FULL"</td><td class="px-3 py-1.5 text-xs text-muted">Defaults to <code class="rounded bg-surface px-1 font-mono">UPSTREAM_PRICE_MODE</code> env.</td></tr>
+          </tbody>
+        </table>
+
+        <h3 class="mt-5 text-sm font-semibold text-muted">Response — 200</h3>
+        <pre class="mt-2 overflow-x-auto rounded-xl border border-border bg-base p-4 font-mono text-sm leading-relaxed">{
+  "data": [
+    {
+      "instrument": { /* InstrumentRecord */ },
+      "quote": { /* QuotePayload */ } | null,
+      "stale": false
+    }
+  ]
+}</pre>
+
+        <h3 class="mt-5 text-sm font-semibold text-muted">Response — 400</h3>
+        <pre class="mt-2 overflow-x-auto rounded-xl border border-border bg-base p-4 font-mono text-sm leading-relaxed">{
+  "error": "ids query parameter is required"
+}</pre>
+      </section>
+
+      <!-- ====== GET /v1/market/candles/:id ====== -->
+      <section id="get-candles" class="mt-14">
+        <div class="flex items-center gap-3">
+          <span class="method-badge method-GET">GET</span>
+          <code class="rounded bg-surface px-3 py-1 font-mono text-base font-semibold">/v1/market/candles/:id</code>
+        </div>
+        <p class="mt-3 leading-relaxed text-muted">
+          1m candles from Redis sorted set. Aggregated server-side into
+          larger intervals (5m, 15m, 1h, 1d).
+        </p>
+
+        <h3 class="mt-5 text-sm font-semibold text-muted">Path &amp; query parameters</h3>
+        <table class="mt-2 w-full border-collapse text-sm">
+          <thead><tr class="text-muted text-xs"><th class="px-3 py-1.5 text-left font-semibold">Param</th><th class="px-3 py-1.5 text-left font-semibold">Type</th><th class="px-3 py-1.5 text-left font-semibold">Default</th></tr></thead>
+          <tbody class="divide-y divide-border">
+            <tr><td class="px-3 py-1.5 font-mono text-xs">:id</td><td class="px-3 py-1.5 text-xs">string</td><td class="px-3 py-1.5 text-xs text-muted">Instrument key, symbol, or security ID.</td></tr>
+            <tr><td class="px-3 py-1.5 font-mono text-xs">interval</td><td class="px-3 py-1.5 text-xs">"1m"|"5m"|"15m"|"1h"|"1d"</td><td class="px-3 py-1.5 text-xs text-muted">"1m"</td></tr>
+            <tr><td class="px-3 py-1.5 font-mono text-xs">from</td><td class="px-3 py-1.5 text-xs">ISO 8601</td><td class="px-3 py-1.5 text-xs text-muted">6 hours ago</td></tr>
+            <tr><td class="px-3 py-1.5 font-mono text-xs">to</td><td class="px-3 py-1.5 text-xs">ISO 8601</td><td class="px-3 py-1.5 text-xs text-muted">now</td></tr>
+            <tr><td class="px-3 py-1.5 font-mono text-xs">limit</td><td class="px-3 py-1.5 text-xs">number</td><td class="px-3 py-1.5 text-xs text-muted">1000</td></tr>
+          </tbody>
+        </table>
+
+        <h3 class="mt-5 text-sm font-semibold text-muted">Response — 200</h3>
+        <pre class="mt-2 overflow-x-auto rounded-xl border border-border bg-base p-4 font-mono text-sm leading-relaxed">{
+  "instrument": { /* InstrumentRecord */ },
+  "interval": "1m",
+  "candles": [
+    {
+      "bucketStart": 1751430240000,
+      "intervalMs": 60000,
+      "open": 1500.25,
+      "high": 1501.00,
+      "low": 1499.50,
+      "close": 1500.75,
+      "volume": 45230,
+      "trades": 284,
+      "lastUpdatedAt": 1751430299000
+    }
+  ]
+}</pre>
+
+        <h3 class="mt-5 text-sm font-semibold text-muted">Response — 404</h3>
+        <pre class="mt-2 overflow-x-auto rounded-xl border border-border bg-base p-4 font-mono text-sm leading-relaxed">{
+  "error": "instrument not found"
+}</pre>
+      </section>
+
+      <!-- ====== GET /v1/market/provider/chart ====== -->
+      <section id="get-provider-chart" class="mt-14">
+        <div class="flex items-center gap-3">
+          <span class="method-badge method-GET">GET</span>
+          <code class="rounded bg-surface px-3 py-1 font-mono text-base font-semibold">/v1/market/provider/chart</code>
+        </div>
+        <p class="mt-3 leading-relaxed text-muted">
+          Raw Paytm chart proxy. Forwards arbitrary query params to
+          <code class="rounded bg-surface px-1.5 py-0.5 font-mono">/data/v1/price-charts/sym</code>
+          on the Paytm API. Response is pass-through from Paytm.
+        </p>
+
+        <h3 class="mt-5 text-sm font-semibold text-muted">Response — 200</h3>
+        <p class="text-sm text-muted">Raw Paytm JSON response (unstructured, pass-through).</p>
+
+        <h3 class="mt-5 text-sm font-semibold text-muted">Response — 400</h3>
+        <pre class="mt-2 overflow-x-auto rounded-xl border border-border bg-base p-4 font-mono text-sm leading-relaxed">{
+  "error": "provider chart query parameters are required"
+}</pre>
+
+        <h3 class="mt-5 text-sm font-semibold text-muted">Response — 502</h3>
+        <pre class="mt-2 overflow-x-auto rounded-xl border border-border bg-base p-4 font-mono text-sm leading-relaxed">{
+  "error": "provider chart request failed",
+  "message": "Paytm request failed 401 ..."
+}</pre>
+      </section>
+
+      <!-- ====== WS /ws/market ====== -->
+      <section id="ws-market" class="mt-14">
+        <div class="flex items-center gap-3">
+          <span class="method-badge method-WS">WS</span>
+          <code class="rounded bg-surface px-3 py-1 font-mono text-base font-semibold">/ws/market</code>
+        </div>
+        <p class="mt-3 leading-relaxed text-muted">
+          Real-time quote fanout gateway. Configured via <code class="rounded bg-surface px-1.5 py-0.5 font-mono">PRICE_WS_PATH</code> env.
+          Source: <code class="rounded bg-surface px-1.5 py-0.5 font-mono">src/ws/marketGateway.ts</code>.
+        </p>
+
+        <h3 class="mt-5 text-sm font-semibold text-muted">On connect — server sends</h3>
+        <pre class="mt-2 overflow-x-auto rounded-xl border border-border bg-base p-4 font-mono text-sm leading-relaxed">{
+  "type": "connected",
+  "gatewayId": "uuid-string",
+  "upstreamMode": "QUOTE",
+  "maxSubscriptions": 100
+}</pre>
+
+        <h3 class="mt-5 text-sm font-semibold text-muted">Client -> Server messages</h3>
+
+        <p class="mt-4 text-sm font-semibold text-muted">Subscribe</p>
+        <pre class="mt-2 overflow-x-auto rounded-xl border border-border bg-base p-4 font-mono text-sm leading-relaxed">{
+  "type": "subscribe",
+  "symbols": [
+    { "symbol": "RELIANCE" },
+    { "instrumentKey": "NSE:EQUITY:3456" },
+    { "securityId": "3456" },
+    { "scripId": "13", "exchangeType": "NSE", "scripType": "INDEX" }
+  ]
+}</pre>
+
+        <p class="mt-4 text-sm font-semibold text-muted">Unsubscribe</p>
+        <pre class="mt-2 overflow-x-auto rounded-xl border border-border bg-base p-4 font-mono text-sm leading-relaxed">{
+  "type": "unsubscribe",
+  "symbols": [
+    { "symbol": "RELIANCE" }
+  ]
+}</pre>
+
+        <p class="mt-4 text-sm font-semibold text-muted">Ping (keep-alive)</p>
+        <pre class="mt-2 overflow-x-auto rounded-xl border border-border bg-base p-4 font-mono text-sm leading-relaxed">{
+  "type": "ping"
+}</pre>
+
+        <h3 class="mt-6 text-sm font-semibold text-muted">Server -> Client messages</h3>
+
+        <p class="mt-4 text-sm font-semibold text-muted">Subscribed confirmation</p>
+        <pre class="mt-2 overflow-x-auto rounded-xl border border-border bg-base p-4 font-mono text-sm leading-relaxed">{
+  "type": "subscribed",
+  "count": 1,
+  "symbols": [
+    {
+      "instrumentKey": "NSE:EQUITY:3456",
+      "securityId": "3456",
+      "exchangeType": "NSE",
+      "scripType": "EQUITY",
+      "modeType": "QUOTE"
+    }
+  ]
+}</pre>
+
+        <p class="mt-4 text-sm font-semibold text-muted">Unsubscribed confirmation</p>
+        <pre class="mt-2 overflow-x-auto rounded-xl border border-border bg-base p-4 font-mono text-sm leading-relaxed">{
+  "type": "unsubscribed",
+  "count": 1,
+  "symbols": [
+    {
+      "instrumentKey": "NSE:EQUITY:3456",
+      "securityId": "3456",
+      "exchangeType": "NSE",
+      "scripType": "EQUITY",
+      "modeType": "QUOTE"
+    }
+  ]
+}</pre>
+
+        <p class="mt-4 text-sm font-semibold text-muted">Quote event</p>
+        <pre class="mt-2 overflow-x-auto rounded-xl border border-border bg-base p-4 font-mono text-sm leading-relaxed">{
+  "type": "quote",
+  "data": { /* QuotePayload — see type definition */ }
+}</pre>
+
+        <p class="mt-4 text-sm font-semibold text-muted">Pong</p>
+        <pre class="mt-2 overflow-x-auto rounded-xl border border-border bg-base p-4 font-mono text-sm leading-relaxed">{
+  "type": "pong"
+}</pre>
+
+        <p class="mt-4 text-sm font-semibold text-muted">Error</p>
+        <pre class="mt-2 overflow-x-auto rounded-xl border border-border bg-base p-4 font-mono text-sm leading-relaxed">{
+  "type": "error",
+  "message": "No valid symbols supplied"
+}</pre>
+      </section>
+
+      <!-- ====== TYPE: InstrumentRecord ====== -->
+      <hr class="my-16 border-border" />
+      <section id="type-instrument" class="mt-10">
+        <h2 class="text-xl font-bold">InstrumentRecord</h2>
+        <p class="mt-2 text-sm text-muted">
+          Source: <code class="rounded bg-surface px-1.5 py-0.5 font-mono">src/types/market.ts</code>.
+          Parsed from Paytm security-master CSV via <code class="rounded bg-surface px-1.5 py-0.5 font-mono">parseSecurityMaster()</code>.
+        </p>
+        <table class="mt-4 w-full border-collapse text-sm">
+          <thead><tr class="text-muted text-xs"><th class="px-3 py-1.5 text-left font-semibold">Field</th><th class="px-3 py-1.5 text-left font-semibold">Type</th></tr></thead>
+          <tbody class="divide-y divide-border font-mono text-xs">
+            <tr><td class="px-3 py-1.5">instrumentKey</td><td class="px-3 py-1.5">string</td></tr>
+            <tr><td class="px-3 py-1.5">securityId</td><td class="px-3 py-1.5">string</td></tr>
+            <tr><td class="px-3 py-1.5">symbol</td><td class="px-3 py-1.5">string</td></tr>
+            <tr><td class="px-3 py-1.5">name</td><td class="px-3 py-1.5">string</td></tr>
+            <tr><td class="px-3 py-1.5">series</td><td class="px-3 py-1.5">string | null</td></tr>
+            <tr><td class="px-3 py-1.5">exchange</td><td class="px-3 py-1.5">string</td></tr>
+            <tr><td class="px-3 py-1.5">segment</td><td class="px-3 py-1.5">string</td></tr>
+            <tr><td class="px-3 py-1.5">instrumentType</td><td class="px-3 py-1.5">string</td></tr>
+            <tr><td class="px-3 py-1.5">scripType</td><td class="px-3 py-1.5">string</td></tr>
+            <tr><td class="px-3 py-1.5">tickSize</td><td class="px-3 py-1.5">number | null</td></tr>
+            <tr><td class="px-3 py-1.5">lotSize</td><td class="px-3 py-1.5">number | null</td></tr>
+            <tr><td class="px-3 py-1.5">upperLimit</td><td class="px-3 py-1.5">number | null</td></tr>
+            <tr><td class="px-3 py-1.5">lowerLimit</td><td class="px-3 py-1.5">number | null</td></tr>
+            <tr><td class="px-3 py-1.5">expiryDate</td><td class="px-3 py-1.5">string | null</td></tr>
+            <tr><td class="px-3 py-1.5">strikePrice</td><td class="px-3 py-1.5">number | null</td></tr>
+            <tr><td class="px-3 py-1.5">freezeQuantity</td><td class="px-3 py-1.5">number | null</td></tr>
+            <tr><td class="px-3 py-1.5">searchableText</td><td class="px-3 py-1.5">string</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- ====== TYPE: QuotePayload ====== -->
+      <section id="type-quote" class="mt-14">
+        <h2 class="text-xl font-bold">QuotePayload</h2>
+        <p class="mt-2 text-sm text-muted">
+          Source: <code class="rounded bg-surface px-1.5 py-0.5 font-mono">src/types/market.ts</code>.
+          Constructed by <code class="rounded bg-surface px-1.5 py-0.5 font-mono">normalizeQuotePayload()</code> in <code class="rounded bg-surface px-1.5 py-0.5 font-mono">src/lib/market.ts</code>
+          from raw Paytm live-data tick fields.
+        </p>
+        <table class="mt-4 w-full border-collapse text-sm">
+          <thead><tr class="text-muted text-xs"><th class="px-3 py-1.5 text-left font-semibold">Field</th><th class="px-3 py-1.5 text-left font-semibold">Type</th></tr></thead>
+          <tbody class="divide-y divide-border font-mono text-xs">
+            <tr><td class="px-3 py-1.5">instrumentKey</td><td class="px-3 py-1.5">string</td></tr>
+            <tr><td class="px-3 py-1.5">securityId</td><td class="px-3 py-1.5">string</td></tr>
+            <tr><td class="px-3 py-1.5">exchangeType</td><td class="px-3 py-1.5">string</td></tr>
+            <tr><td class="px-3 py-1.5">scripType</td><td class="px-3 py-1.5">string</td></tr>
+            <tr><td class="px-3 py-1.5">modeType</td><td class="px-3 py-1.5">"LTP" | "QUOTE" | "FULL"</td></tr>
+            <tr><td class="px-3 py-1.5">found</td><td class="px-3 py-1.5">boolean</td></tr>
+            <tr><td class="px-3 py-1.5">tradable</td><td class="px-3 py-1.5">boolean | null</td></tr>
+            <tr><td class="px-3 py-1.5">lastPrice</td><td class="px-3 py-1.5">number | null</td></tr>
+            <tr><td class="px-3 py-1.5">changePercent</td><td class="px-3 py-1.5">number | null</td></tr>
+            <tr><td class="px-3 py-1.5">changeAbsolute</td><td class="px-3 py-1.5">number | null</td></tr>
+            <tr><td class="px-3 py-1.5">lastTradeTime</td><td class="px-3 py-1.5">string (ISO) | null</td></tr>
+            <tr><td class="px-3 py-1.5">lastUpdateTime</td><td class="px-3 py-1.5">string (ISO) | null</td></tr>
+            <tr><td class="px-3 py-1.5">lastTradedQuantity</td><td class="px-3 py-1.5">number | null</td></tr>
+            <tr><td class="px-3 py-1.5">averageTradedPrice</td><td class="px-3 py-1.5">number | null</td></tr>
+            <tr><td class="px-3 py-1.5">volumeTraded</td><td class="px-3 py-1.5">number | null</td></tr>
+            <tr><td class="px-3 py-1.5">totalBuyQuantity</td><td class="px-3 py-1.5">number | null</td></tr>
+            <tr><td class="px-3 py-1.5">totalSellQuantity</td><td class="px-3 py-1.5">number | null</td></tr>
+            <tr><td class="px-3 py-1.5">ohlc</td><td class="px-3 py-1.5">{ open, high, low, close: number|null } | null</td></tr>
+            <tr><td class="px-3 py-1.5">week52High</td><td class="px-3 py-1.5">number | null</td></tr>
+            <tr><td class="px-3 py-1.5">week52Low</td><td class="px-3 py-1.5">number | null</td></tr>
+            <tr><td class="px-3 py-1.5">oi</td><td class="px-3 py-1.5">number | null</td></tr>
+            <tr><td class="px-3 py-1.5">changeOi</td><td class="px-3 py-1.5">number | null</td></tr>
+            <tr><td class="px-3 py-1.5">depth</td><td class="px-3 py-1.5">{ buy: QuoteDepthLevel[], sell: QuoteDepthLevel[] } | null</td></tr>
+            <tr><td class="px-3 py-1.5">providerTs</td><td class="px-3 py-1.5">number (epoch ms) | null</td></tr>
+            <tr><td class="px-3 py-1.5">receivedAt</td><td class="px-3 py-1.5">string (ISO)</td></tr>
+            <tr><td class="px-3 py-1.5">raw</td><td class="px-3 py-1.5">Record&lt;string, unknown&gt;</td></tr>
+          </tbody>
+        </table>
+
+        <h3 class="mt-6 text-sm font-semibold text-muted">QuoteDepthLevel</h3>
+        <pre class="mt-2 overflow-x-auto rounded-xl border border-border bg-base p-4 font-mono text-sm leading-relaxed">{
+  "quantity": number | null,
+  "price": number | null,
+  "orders": number | null
+}</pre>
+      </section>
+
+      <!-- ====== TYPE: QuoteEnvelope ====== -->
+      <section id="type-quote-env" class="mt-14">
+        <h2 class="text-xl font-bold">QuoteEnvelope</h2>
+        <p class="mt-2 text-sm text-muted">
+          Returned by <code class="rounded bg-surface px-1.5 py-0.5 font-mono">/v1/market/quotes</code>.
+          Wraps instrument metadata, the latest quote, and staleness.
+        </p>
+        <table class="mt-4 w-full border-collapse text-sm">
+          <thead><tr class="text-muted text-xs"><th class="px-3 py-1.5 text-left font-semibold">Field</th><th class="px-3 py-1.5 text-left font-semibold">Type</th></tr></thead>
+          <tbody class="divide-y divide-border font-mono text-xs">
+            <tr><td class="px-3 py-1.5">instrument</td><td class="px-3 py-1.5">InstrumentRecord</td></tr>
+            <tr><td class="px-3 py-1.5">quote</td><td class="px-3 py-1.5">QuotePayload | null</td></tr>
+            <tr><td class="px-3 py-1.5">stale</td><td class="px-3 py-1.5">boolean</td></tr>
+          </tbody>
+        </table>
+        <p class="mt-2 text-sm text-muted">
+          Staleness is determined by <code class="rounded bg-surface px-1 font-mono">QUOTE_STALE_MS</code> env
+          (default 15s). <code class="rounded bg-surface px-1 font-mono">quote</code> is null if no quote has
+          ever been received for this instrument.
+        </p>
+      </section>
+
+      <!-- ====== TYPE: CandleRecord ====== -->
+      <section id="type-candle" class="mt-14">
+        <h2 class="text-xl font-bold">CandleRecord</h2>
+        <p class="mt-2 text-sm text-muted">
+          Source: <code class="rounded bg-surface px-1.5 py-0.5 font-mono">src/types/market.ts</code>.
+          Stored in Redis sorted sets keyed by <code class="rounded bg-surface px-1.5 py-0.5 font-mono">market:candles:1m:{instrumentKey}</code>.
+        </p>
+        <table class="mt-4 w-full border-collapse text-sm">
+          <thead><tr class="text-muted text-xs"><th class="px-3 py-1.5 text-left font-semibold">Field</th><th class="px-3 py-1.5 text-left font-semibold">Type</th></tr></thead>
+          <tbody class="divide-y divide-border font-mono text-xs">
+            <tr><td class="px-3 py-1.5">bucketStart</td><td class="px-3 py-1.5">number (epoch ms)</td></tr>
+            <tr><td class="px-3 py-1.5">intervalMs</td><td class="px-3 py-1.5">number</td></tr>
+            <tr><td class="px-3 py-1.5">open</td><td class="px-3 py-1.5">number</td></tr>
+            <tr><td class="px-3 py-1.5">high</td><td class="px-3 py-1.5">number</td></tr>
+            <tr><td class="px-3 py-1.5">low</td><td class="px-3 py-1.5">number</td></tr>
+            <tr><td class="px-3 py-1.5">close</td><td class="px-3 py-1.5">number</td></tr>
+            <tr><td class="px-3 py-1.5">volume</td><td class="px-3 py-1.5">number | null</td></tr>
+            <tr><td class="px-3 py-1.5">trades</td><td class="px-3 py-1.5">number</td></tr>
+            <tr><td class="px-3 py-1.5">lastUpdatedAt</td><td class="px-3 py-1.5">number (epoch ms)</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- ====== FOOTER NOTE ====== -->
+      <hr class="my-16 border-border" />
+      <p class="text-xs text-muted">
+        All payloads documented here are sourced from the actual TypeScript types and handler implementations
+        in <code class="rounded bg-surface px-1 font-mono">src/app/buildApp.ts</code>,
+        <code class="rounded bg-surface px-1 font-mono">src/types/market.ts</code>,
+        <code class="rounded bg-surface px-1 font-mono">src/lib/market.ts</code>,
+        and <code class="rounded bg-surface px-1 font-mono">src/ws/marketGateway.ts</code>.
+      </p>
+    </div>
+  </div>
+</body>
+</html>

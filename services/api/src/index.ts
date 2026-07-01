@@ -1,7 +1,8 @@
-import { Elysia } from "elysia";
+import { bootstrapRuntime } from "./runtime/bootstrap";
 
-const app = new Elysia().get("/", () => "Hello Elysia").listen(3000);
+const runtime = await bootstrapRuntime();
+const app = runtime.app.listen(runtime.env.port);
 
 console.log(
-  `🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`
+  `${runtime.env.serviceName} listening on http://${app.server?.hostname}:${app.server?.port}`
 );

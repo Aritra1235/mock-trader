@@ -3,6 +3,9 @@
   "module": "index.ts",
   "type": "module",
   "private": true,
+  "scripts": {
+    "price-ingest": "bun run src/price-ingest.ts"
+  },
   "devDependencies": {
     "@types/bun": "latest"
   },
@@ -10,6 +13,7 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "redis": "^4.7.0",
     "yahoo-finance2": "^3.14.0"
   }
 }

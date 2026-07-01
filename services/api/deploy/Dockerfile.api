@@ -1,0 +1,20 @@
+FROM oven/bun:1.2 AS base
+
+WORKDIR /app
+
+COPY libraries/tsPMClient/package.json libraries/tsPMClient/pnpm-lock.yaml ./libraries/tsPMClient/
+WORKDIR /app/libraries/tsPMClient
+RUN bun install
+
+WORKDIR /app
+COPY services/api/package.json services/api/bun.lock services/api/tsconfig.json ./services/api/
+WORKDIR /app/services/api
+RUN bun install
+
+WORKDIR /app
+COPY libraries/tsPMClient ./libraries/tsPMClient
+COPY services/api ./services/api
+
+WORKDIR /app/services/api
+EXPOSE 3000
+CMD ["bun", "run", "src/index.ts"]

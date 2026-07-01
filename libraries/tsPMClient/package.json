@@ -1,0 +1,39 @@
+{
+  "name": "ts-paytmmoney-sdk",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "jest --coverage --detectOpenHandles"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "querystring": "^0.2.1",
+    "request": "^2.88.2",
+    "ws": "^8.17.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.12",
+    "@types/node": "^20.12.12",
+    "@types/request": "^2.48.12",
+    "@types/ws": "^8.5.10",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.2",
+    "typescript": "^5.5.4"
+  },
+  "description": "eq-openapi-sdk in TypeScript",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/paytmmoney/jsPMClient.git"
+  },
+  "bugs": {
+    "url": "https://github.com/paytmmoney/jsPMClient/issues"
+  },
+  "homepage": "https://github.com/paytmmoney/jsPMClient#readme"
+}

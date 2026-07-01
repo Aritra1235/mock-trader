@@ -1,15 +1,46 @@
-# Elysia with Bun runtime
+# Mock Trader API
 
-## Getting Started
-To get started with this template, simply paste this command into your terminal:
+Users talk only to this backend. Paytm auth, token exchange, and session inspection are private operator scripts, not public HTTP routes.
+
+## Start locally
+
+Start Redis:
+
 ```bash
-bun create elysia ./elysia-example
+docker compose -f deploy/docker-compose.yml up redis
 ```
 
-## Development
-To start the development server run:
+Start the API:
+
 ```bash
 bun run dev
 ```
 
-Open http://localhost:3000/ with your browser to see the result.
+Start the Paytm ingest worker in a second terminal:
+
+```bash
+bun run worker:ingest
+```
+
+Refresh catalog data when needed:
+
+```bash
+bun run worker:catalog
+```
+
+Check readiness:
+
+```bash
+curl http://localhost:3000/ready
+```
+
+## Private Paytm commands
+
+```bash
+bun run paytm:login-url
+bun run paytm:exchange-token -- <requestToken>
+bun run paytm:session
+bun run verify:paytm -- RELIANCE
+```
+
+Docs are available in both Markdown and HTML under [docs](/home/aritra-bhattacharya/Desktop/Projects/mock-trader/services/api/docs).

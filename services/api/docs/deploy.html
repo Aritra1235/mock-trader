@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Deployment Guide — Mock Trader</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            base: '#0b1117',
+            surface: '#121a24',
+            border: '#1e293b',
+            muted: '#8b95a5',
+            text: '#e2e8f0',
+            accent: '#60a5fa',
+            green: '#22c55e',
+            orange: '#fb923c',
+            red: '#f87171',
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
+          },
+        },
+      },
+    };
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    * { scrollbar-width: thin; scrollbar-color: #1e293b transparent; }
+    body { background: #0b1117; }
+    html { scroll-behavior: smooth; }
+    ::selection { background: #3b82f6; color: #fff; }
+    .sidebar-link { transition: all 0.12s ease; border-left: 2px solid transparent; }
+    .sidebar-link:hover { background: #1e293b; }
+    pre::-webkit-scrollbar { height: 6px; }
+    pre::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+    code { font-size: 0.875em; }
+    h2[id]::before, h3[id]::before { content: ''; display: block; height: 64px; margin: -64px 0 0; }
+    .key { color: #f472b6; }
+    .str { color: #22c55e; }
+    .num { color: #60a5fa; }
+    .bool { color: #fbbf24; }
+    details summary::-webkit-details-marker { display: none; }
+    details summary { list-style: none; }
+    details summary:after { content: '+'; float: right; color: #8b95a5; }
+    details[open] summary:after { content: '-'; }
+  </style>
+</head>
+<body class="font-sans text-text antialiased">
+  <nav class="fixed top-0 z-50 flex h-14 w-full items-center border-b border-border bg-base/95 backdrop-blur-sm">
+    <div class="mx-auto flex w-full max-w-6xl items-center justify-between px-6">
+      <a href="/docs/index.html" class="flex items-center gap-2 text-base font-semibold tracking-tight">
+        <span class="flex h-7 w-7 items-center justify-center rounded-md bg-accent text-xs font-bold text-base">MT</span>
+        <span>Mock Trader</span>
+      </a>
+      <div class="flex items-center gap-1 text-sm">
+        <a href="/docs/api" class="rounded-lg px-3 py-1.5 font-medium text-muted hover:bg-surface hover:text-text">API</a>
+        <a href="/docs/dev" class="rounded-lg px-3 py-1.5 font-medium text-muted hover:bg-surface hover:text-text">Dev</a>
+        <a href="/docs/deploy" class="rounded-lg px-3 py-1.5 font-medium text-accent bg-surface">Deploy</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="mx-auto flex w-full max-w-6xl pt-14">
+    <aside class="hidden w-56 shrink-0 border-r border-border px-3 py-8 lg:block">
+      <nav class="sticky top-20 flex flex-col gap-1 text-sm">
+        <span class="mb-1 px-3 text-xs font-semibold uppercase tracking-widest text-muted">Deploy Guide</span>
+        <a href="#architecture" class="sidebar-link rounded-md px-3 py-1.5 text-muted hover:text-text">Architecture</a>
+        <a href="#compose" class="sidebar-link rounded-md px-3 py-1.5 text-muted hover:text-text">Docker Compose</a>
+        <a href="#env-config" class="sidebar-link rounded-md px-3 py-1.5 text-muted hover:text-text">Environment config</a>
+        <a href="#scaling" class="sidebar-link rounded-md px-3 py-1.5 text-muted hover:text-text">Scaling</a>
+        <a href="#readiness" class="sidebar-link rounded-md px-3 py-1.5 text-muted hover:text-text">Readiness gate</a>
+        <a href="#checklist" class="sidebar-link rounded-md px-3 py-1.5 text-muted hover:text-text">Checklist</a>
+        <a href="#private-ops" class="sidebar-link rounded-md px-3 py-1.5 text-muted hover:text-text">Private ops</a>
+      </nav>
+    </aside>
+
+    <div class="min-w-0 flex-1 px-6 py-10 pb-32">
+      <h1 class="text-3xl font-extrabold tracking-tight">Deployment Guide</h1>
+      <p class="mt-2 leading-relaxed text-muted">
+        One Paytm upstream stream feeding many site users. Scale API
+        replicas horizontally; keep the ingest worker as a singleton
+        unless you intentionally shard subscriptions.
+      </p>
+
+      <!-- Architecture -->
+      <section id="architecture" class="mt-10">
+        <h2 class="text-xl font-bold">Service architecture</h2>
+        <p class="mt-3 leading-relaxed text-muted">
+          Four containers compose the backend. Only the API process is
+          publicly reachable. All inter-service communication goes through
+          Redis pub/sub.
+        </p>
+
+        <div class="mt-5 grid gap-3 sm:grid-cols-2">
+          <div class="rounded-xl border border-border bg-surface p-5">
+            <span class="inline-block rounded-md bg-accent/10 px-2 py-0.5 text-xs font-semibold text-accent">api</span>
+            <h3 class="mt-3 font-semibold">Public edge</h3>
+            <p class="mt-1 text-sm leading-relaxed text-muted">
+              HTTP API and user WebSocket gateway. Exposes readiness checks,
+              market REST routes, and realtime quote fanout. This is the only
+              service behind the load balancer.
+            </p>
+            <div class="mt-3 rounded-lg bg-base p-3 text-xs font-mono text-muted">
+              ports: 3000 (HTTP/WS)
+            </div>
+          </div>
+
+          <div class="rounded-xl border border-border bg-surface p-5">
+            <span class="inline-block rounded-md bg-green/10 px-2 py-0.5 text-xs font-semibold text-green">price-ingest</span>
+            <h3 class="mt-3 font-semibold">Stream singleton</h3>
+            <p class="mt-1 text-sm leading-relaxed text-muted">
+              Owns the upstream Paytm WebSocket connection. Subscribes to
+              instruments via Redis lease keys, publishes raw quotes to
+              Redis pub/sub.
+            </p>
+            <div class="mt-3 rounded-lg bg-base p-3 text-xs font-mono text-muted">
+              depends_on: redis, paytm session
+            </div>
+          </div>
+
+          <div class="rounded-xl border border-border bg-surface p-5">
+            <span class="inline-block rounded-md bg-orange/10 px-2 py-0.5 text-xs font-semibold text-orange">redis</span>
+            <h3 class="mt-3 font-semibold">Backplane</h3>
+            <p class="mt-1 text-sm leading-relaxed text-muted">
+              Pub/sub message bus, subscription lease storage, latest quote
+              cache, and candle cache. All services depend on Redis.
+            </p>
+            <div class="mt-3 rounded-lg bg-base p-3 text-xs font-mono text-muted">
+              ports: 6379 (internal)
+            </div>
+          </div>
+
+          <div class="rounded-xl border border-border bg-surface p-5">
+            <span class="inline-block rounded-md bg-muted/10 px-2 py-0.5 text-xs font-semibold text-muted">catalog-sync</span>
+            <h3 class="mt-3 font-semibold">One-shot job</h3>
+            <p class="mt-1 text-sm leading-relaxed text-muted">
+              Refreshes the Paytm security-master snapshot. Runs on-demand
+              or as a cron job. Writes the instrument catalog file.
+            </p>
+            <div class="mt-3 rounded-lg bg-base p-3 text-xs font-mono text-muted">
+              output: data/instruments.snapshot.json
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-5 rounded-xl border border-border bg-surface p-5">
+          <div class="flex items-start gap-3">
+            <span class="mt-0.5 text-orange text-lg font-bold">!</span>
+            <div>
+              <p class="text-sm font-semibold text-orange">Traffic rule</p>
+              <p class="mt-1 text-sm text-muted">
+                Put the public load balancer in front of <code class="rounded bg-base px-1 font-mono text-text">api</code> only.
+                Never expose Redis, the ingest worker, or any operator scripts
+                to external traffic. Auth routes must remain 404.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Docker Compose -->
+      <section id="compose" class="mt-12">
+        <h2 class="text-xl font-bold">Docker Compose</h2>
+        <p class="mt-3 leading-relaxed text-muted">
+          A Compose file lives at
+          <code class="rounded bg-surface px-1.5 py-0.5 font-mono text-text">services/api/deploy/docker-compose.yml</code>.
+          It defines all four services with their dependencies and mount points.
+        </p>
+
+        <div class="mt-5 grid gap-4 lg:grid-cols-2">
+          <div class="rounded-xl border border-border bg-surface p-5">
+            <h3 class="font-semibold">Full production start</h3>
+            <p class="text-sm text-muted">Build and start every service:</p>
+            <pre class="mt-2 overflow-x-auto rounded-lg bg-base p-3 font-mono text-sm text-text">docker compose -f deploy/docker-compose.yml up --build</pre>
+            <p class="mt-2 text-sm text-muted">
+              Run from <code class="rounded bg-base px-1 font-mono text-text">services/api</code>.
+              The <code class="rounded bg-base px-1 font-mono text-text">--build</code> flag
+              rebuilds the API image on code changes. Omit it for faster starts
+              when the image is current.
+            </p>
+          </div>
+
+          <div class="rounded-xl border border-border bg-surface p-5">
+            <h3 class="font-semibold">Local dev (Redis only)</h3>
+            <p class="text-sm text-muted">Start only Redis:</p>
+            <pre class="mt-2 overflow-x-auto rounded-lg bg-base p-3 font-mono text-sm text-text">docker compose -f deploy/docker-compose.yml up redis</pre>
+            <p class="mt-2 text-sm text-muted">
+              Use this when running the API and worker via
+              <code class="rounded bg-base px-1 font-mono text-text">bun run dev</code> and
+              <code class="rounded bg-base px-1 font-mono text-text">bun run worker:ingest</code>
+              outside containers.
+            </p>
+          </div>
+        </div>
+
+        <div class="mt-5 rounded-xl border border-border bg-surface p-5">
+          <h3 class="font-semibold">Compose file structure (reference)</h3>
+          <pre class="mt-2 overflow-x-auto rounded-lg bg-base p-3 font-mono text-xs leading-relaxed text-muted">services:
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    volumes: ["redis-data:/data"]
+
+  api:
+    build: ..
+    ports: ["3000:3000"]
+    depends_on: [redis]
+    env_file: ../.env
+    volumes: [../data:/app/data]
+
+  price-ingest:
+    build: ..
+    depends_on: [redis]
+    env_file: ../.env
+    volumes: [../data:/app/data]
+
+  catalog-sync:
+    build: ..
+    depends_on: [redis]
+    env_file: ../.env
+    volumes: [../data:/app/data]</pre>
+        </div>
+      </section>
+
+      <!-- Environment config -->
+      <section id="env-config" class="mt-12">
+        <h2 class="text-xl font-bold">Environment configuration</h2>
+        <p class="mt-3 leading-relaxed text-muted">
+          All configuration is passed through environment variables. The
+          <code class="rounded bg-surface px-1.5 py-0.5 font-mono text-text">.env</code> file
+          at <code class="rounded bg-surface px-1.5 py-0.5 font-mono text-text">services/api/.env</code>
+          is loaded by Docker Compose and Bun.
+        </p>
+
+        <table class="mt-4 w-full border-collapse text-sm">
+          <thead><tr class="text-muted text-xs"><th class="px-3 py-2 text-left font-semibold">Variable</th><th class="px-3 py-2 text-left font-semibold">Required</th><th class="px-3 py-2 text-left font-semibold">Description</th></tr></thead>
+          <tbody class="divide-y divide-border">
+            <tr><td class="px-3 py-2 font-mono text-xs">PAYTM_API_KEY</td><td class="px-3 py-2 text-xs text-green">yes</td><td class="px-3 py-2 text-xs text-muted">Paytm SmartConnect API key.</td></tr>
+            <tr><td class="px-3 py-2 font-mono text-xs">PAYTM_API_SECRET</td><td class="px-3 py-2 text-xs text-green">yes</td><td class="px-3 py-2 text-xs text-muted">Paytm SmartConnect API secret.</td></tr>
+            <tr><td class="px-3 py-2 font-mono text-xs">PAYTM_CALLBACK_URL</td><td class="px-3 py-2 text-xs text-green">yes</td><td class="px-3 py-2 text-xs text-muted">OAuth callback URL registered with Paytm.</td></tr>
+            <tr><td class="px-3 py-2 font-mono text-xs">REDIS_HOST</td><td class="px-3 py-2 text-xs text-muted">no</td><td class="px-3 py-2 text-xs text-muted">Redis hostname (default: localhost).</td></tr>
+            <tr><td class="px-3 py-2 font-mono text-xs">REDIS_PORT</td><td class="px-3 py-2 text-xs text-muted">no</td><td class="px-3 py-2 text-xs text-muted">Redis port (default: 6379).</td></tr>
+            <tr><td class="px-3 py-2 font-mono text-xs">PORT</td><td class="px-3 py-2 text-xs text-muted">no</td><td class="px-3 py-2 text-xs text-muted">API server port (default: 3000).</td></tr>
+          </tbody>
+        </table>
+
+        <div class="mt-4 rounded-xl border border-border bg-surface p-5">
+          <p class="text-sm font-medium text-orange">Security note</p>
+          <p class="mt-1 text-sm text-muted">
+            Keep the <code class="rounded bg-base px-1 font-mono text-text">.env</code> file
+            out of version control. Add it to <code class="rounded bg-base px-1 font-mono text-text">.gitignore</code>
+            and use <code class="rounded bg-base px-1 font-mono text-text">.env.example</code> as
+            the committed template.
+          </p>
+        </div>
+      </section>
+
+      <!-- Scaling -->
+      <section id="scaling" class="mt-12">
+        <h2 class="text-xl font-bold">Scaling</h2>
+        <p class="mt-3 leading-relaxed text-muted">
+          The system is designed for asymmetric scaling. The ingest side
+          is a singleton; the serving side scales horizontally.
+        </p>
+
+        <div class="mt-5 grid gap-4 sm:grid-cols-2">
+          <div class="rounded-xl border border-border bg-surface p-5">
+            <span class="inline-block rounded-md bg-accent/10 px-2 py-0.5 text-xs font-semibold text-accent">Horizontal</span>
+            <h3 class="mt-3 font-semibold">API replicas</h3>
+            <p class="mt-1 text-sm leading-relaxed text-muted">
+              Scale <code class="rounded bg-base px-1 font-mono text-text">api</code> freely
+              behind your load balancer. Each replica connects to the same Redis
+              backplane and serves the same HTTP/WS surface. No per-replica state
+              beyond the Redis connection.
+            </p>
+          </div>
+
+          <div class="rounded-xl border border-border bg-surface p-5">
+            <span class="inline-block rounded-md bg-orange/10 px-2 py-0.5 text-xs font-semibold text-orange">Singleton</span>
+            <h3 class="mt-3 font-semibold">Ingest worker</h3>
+            <p class="mt-1 text-sm leading-relaxed text-muted">
+              Keep <code class="rounded bg-base px-1 font-mono text-text">price-ingest</code>
+              at one replica by default. Multiple workers create duplicate upstream
+              subscriptions to Paytm. Shard only if you deliberately split symbol
+              groups across workers.
+            </p>
+          </div>
+        </div>
+
+        <div class="mt-5 rounded-xl border border-border bg-surface p-5">
+          <h3 class="font-semibold">Data persistence</h3>
+          <p class="mt-1 text-sm text-muted">
+            Mount a volume or bind-mount for the <code class="rounded bg-base px-1 font-mono text-text">data/</code>
+            directory to preserve these files across restarts:
+          </p>
+          <ul class="mt-2 space-y-1 text-sm text-muted">
+            <li>— <code class="rounded bg-base px-1 font-mono text-text">paytm-session.json</code> — avoids re-authentication after deploy</li>
+            <li>— <code class="rounded bg-base px-1 font-mono text-text">instruments.snapshot.json</code> — avoids re-syncing the full catalog</li>
+          </ul>
+          <p class="mt-2 text-sm text-muted">
+            Without persistence, every container restart requires re-login
+            to Paytm and a catalog re-sync.
+          </p>
+        </div>
+      </section>
+
+      <!-- Readiness gate -->
+      <section id="readiness" class="mt-12">
+        <h2 class="text-xl font-bold">Readiness gate</h2>
+        <p class="mt-3 leading-relaxed text-muted">
+          The frontend and load balancer should route market commands only
+          after the readiness endpoint confirms all dependencies.
+        </p>
+
+        <div class="mt-5 grid gap-4 lg:grid-cols-2">
+          <div class="rounded-xl border border-border bg-surface p-5">
+            <h3 class="font-semibold">Check command</h3>
+            <pre class="mt-2 overflow-x-auto rounded-lg bg-base p-3 font-mono text-sm text-text">curl http://localhost:3000/ready</pre>
+          </div>
+          <div class="rounded-xl border border-border bg-surface p-5">
+            <h3 class="font-semibold">Healthy response (200)</h3>
+            <pre class="mt-2 overflow-x-auto rounded-lg bg-base p-3 font-mono text-sm text-text leading-relaxed"><span class="text-green">{
+  "ready": true,
+  "checks": { "redis": true, "subscriptionLeases": true, "paytmSession": true, "catalog": true }
+}</span></pre>
+          </div>
+        </div>
+
+        <div class="mt-4 rounded-xl border border-border bg-surface p-5">
+          <h3 class="font-semibold">Unhealthy response (503)</h3>
+          <pre class="mt-2 overflow-x-auto rounded-lg bg-base p-3 font-mono text-sm text-text leading-relaxed"><span class="text-red">{
+  "ready": false,
+  "checks": { "redis": true, "subscriptionLeases": false, "paytmSession": true, "catalog": true }
+}</span></pre>
+          <p class="mt-2 text-sm text-muted">
+            The <code class="rounded bg-base px-1 font-mono text-text">checks</code> object
+            shows exactly which dependency failed. Use this to diagnose startup
+            issues before routing traffic.
+          </p>
+        </div>
+      </section>
+
+      <!-- Checklist -->
+      <section id="checklist" class="mt-12">
+        <h2 class="text-xl font-bold">Production checklist</h2>
+        <p class="mt-3 leading-relaxed text-muted">
+          Verify each item before opening traffic to a new deployment.
+        </p>
+        <div class="mt-5 space-y-3">
+          <div class="flex items-start gap-3 rounded-xl border border-border bg-surface p-4">
+            <span class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-green/20 text-xs font-bold text-green">Y</span>
+            <div>
+              <h3 class="font-semibold">Persist session and catalog</h3>
+              <p class="text-sm text-muted"><code class="rounded bg-base px-1 font-mono text-text">data/</code> is mounted as a volume. <code class="rounded bg-base px-1 font-mono text-text">paytm-session.json</code> and <code class="rounded bg-base px-1 font-mono text-text">instruments.snapshot.json</code> survive restarts.</p>
+            </div>
+          </div>
+          <div class="flex items-start gap-3 rounded-xl border border-border bg-surface p-4">
+            <span class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-green/20 text-xs font-bold text-green">Y</span>
+            <div>
+              <h3 class="font-semibold">Scale intentionally</h3>
+              <p class="text-sm text-muted"><code class="rounded bg-base px-1 font-mono text-text">api</code> can scale freely. <code class="rounded bg-base px-1 font-mono text-text">price-ingest</code> is locked to one replica.</p>
+            </div>
+          </div>
+          <div class="flex items-start gap-3 rounded-xl border border-border bg-surface p-4">
+            <span class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-green/20 text-xs font-bold text-green">Y</span>
+            <div>
+              <h3 class="font-semibold">Readiness passes</h3>
+              <p class="text-sm text-muted"><code class="rounded bg-base px-1 font-mono text-text">/ready</code> returns 200 with <code class="rounded bg-base px-1 font-mono text-text">"ready": true</code>. All four checks pass.</p>
+            </div>
+          </div>
+          <div class="flex items-start gap-3 rounded-xl border border-border bg-surface p-4">
+            <span class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-green/20 text-xs font-bold text-green">Y</span>
+            <div>
+              <h3 class="font-semibold">Provider data flows</h3>
+              <p class="text-sm text-muted"><code class="rounded bg-base px-1 font-mono text-text">bun run verify:paytm -- RELIANCE</code> returns live market data from Paytm.</p>
+            </div>
+          </div>
+          <div class="flex items-start gap-3 rounded-xl border border-border bg-surface p-4">
+            <span class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-green/20 text-xs font-bold text-green">Y</span>
+            <div>
+              <h3 class="font-semibold">Public surface locked</h3>
+              <p class="text-sm text-muted">Auth routes return 404. Only documented endpoints are accessible. Load balancer targets <code class="rounded bg-base px-1 font-mono text-text">api</code> only.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Private ops -->
+      <section id="private-ops" class="mt-12">
+        <h2 class="text-xl font-bold">Private operator tasks</h2>
+        <p class="mt-3 leading-relaxed text-muted">
+          Run these from the server shell. They are intentionally not
+          HTTP routes to protect Paytm credentials and rate limits.
+        </p>
+        <div class="mt-5 grid gap-4 sm:grid-cols-2">
+          <div class="rounded-xl border border-border bg-surface p-4">
+            <span class="text-xs font-semibold uppercase tracking-wider text-muted">Generate login URL</span>
+            <pre class="mt-2 overflow-x-auto rounded-lg bg-base p-3 font-mono text-sm text-text">bun run paytm:login-url</pre>
+          </div>
+          <div class="rounded-xl border border-border bg-surface p-4">
+            <span class="text-xs font-semibold uppercase tracking-wider text-muted">Exchange request token</span>
+            <pre class="mt-2 overflow-x-auto rounded-lg bg-base p-3 font-mono text-sm text-text">bun run paytm:exchange-token -- &lt;requestToken&gt;</pre>
+          </div>
+          <div class="rounded-xl border border-border bg-surface p-4">
+            <span class="text-xs font-semibold uppercase tracking-wider text-muted">Verify provider data</span>
+            <pre class="mt-2 overflow-x-auto rounded-lg bg-base p-3 font-mono text-sm text-text">bun run verify:paytm -- RELIANCE</pre>
+          </div>
+          <div class="rounded-xl border border-border bg-surface p-4">
+            <span class="text-xs font-semibold uppercase tracking-wider text-muted">Sync catalog</span>
+            <pre class="mt-2 overflow-x-auto rounded-lg bg-base p-3 font-mono text-sm text-text">bun run worker:catalog</pre>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</body>
+</html>

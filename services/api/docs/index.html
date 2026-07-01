@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mock Trader Backend Docs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            base: '#0b1117',
+            surface: '#121a24',
+            border: '#1e293b',
+            muted: '#8b95a5',
+            text: '#e2e8f0',
+            accent: '#60a5fa',
+            green: '#22c55e',
+            orange: '#fb923c',
+            red: '#f87171',
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
+          },
+        },
+      },
+    };
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    * { scrollbar-width: thin; scrollbar-color: #1e293b transparent; }
+    body { background: #0b1117; }
+    html { scroll-behavior: smooth; }
+    ::selection { background: #3b82f6; color: #fff; }
+    .sidebar-link { transition: all 0.12s ease; }
+    .sidebar-link:hover { background: #1e293b; color: #60a5fa; }
+    .sidebar-link.active { background: #1e293b; color: #60a5fa; border-left: 2px solid #60a5fa; }
+    pre::-webkit-scrollbar { height: 6px; }
+    pre::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+    .code-block { position: relative; }
+    .code-block:hover .copy-btn { opacity: 1; }
+  </style>
+</head>
+<body class="font-sans text-text antialiased">
+  <nav class="fixed top-0 z-50 flex h-14 w-full items-center border-b border-border bg-base/95 backdrop-blur-sm">
+    <div class="mx-auto flex w-full max-w-6xl items-center justify-between px-6">
+      <a href="/docs/index.html" class="flex items-center gap-2 text-base font-semibold tracking-tight">
+        <span class="flex h-7 w-7 items-center justify-center rounded-md bg-accent text-xs font-bold text-base">MT</span>
+        <span>Mock Trader</span>
+      </a>
+      <div class="flex items-center gap-1 text-sm">
+        <a href="/docs/api" class="rounded-lg px-3 py-1.5 font-medium text-muted hover:bg-surface hover:text-text">API</a>
+        <a href="/docs/dev" class="rounded-lg px-3 py-1.5 font-medium text-muted hover:bg-surface hover:text-text">Dev</a>
+        <a href="/docs/deploy" class="rounded-lg px-3 py-1.5 font-medium text-muted hover:bg-surface hover:text-text">Deploy</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="mx-auto max-w-4xl px-6 pt-24 pb-20">
+    <h1 class="text-4xl font-extrabold tracking-tight">Mock Trader Backend</h1>
+    <p class="mt-3 max-w-2xl text-lg leading-relaxed text-muted">
+      Centralized market data backend. One Paytm ingest stream fans out to many
+      site users through REST and WebSocket APIs. No Paytm auth is exposed to the browser.
+    </p>
+
+    <div class="mt-8 grid gap-3 sm:grid-cols-3">
+      <a href="/docs/api" class="group rounded-xl border border-border bg-surface p-5 hover:border-accent/40">
+        <span class="inline-block rounded-lg bg-accent/10 px-2.5 py-0.5 text-xs font-semibold text-accent">Reference</span>
+        <h2 class="mt-3 text-lg font-bold group-hover:text-accent">API</h2>
+        <p class="mt-1 text-sm leading-relaxed text-muted">Endpoints, WebSocket messages, readiness contract, and private ops.</p>
+      </a>
+      <a href="/docs/dev" class="group rounded-xl border border-border bg-surface p-5 hover:border-accent/40">
+        <span class="inline-block rounded-lg bg-green/10 px-2.5 py-0.5 text-xs font-semibold text-green">Guide</span>
+        <h2 class="mt-3 text-lg font-bold group-hover:text-accent">Development</h2>
+        <p class="mt-1 text-sm leading-relaxed text-muted">Local workflow, Paytm login flow, testing, and verification.</p>
+      </a>
+      <a href="/docs/deploy" class="group rounded-xl border border-border bg-surface p-5 hover:border-accent/40">
+        <span class="inline-block rounded-lg bg-orange/10 px-2.5 py-0.5 text-xs font-semibold text-orange">Ops</span>
+        <h2 class="mt-3 text-lg font-bold group-hover:text-accent">Deployment</h2>
+        <p class="mt-1 text-sm leading-relaxed text-muted">Service architecture, Docker Compose, scaling rules, and checklist.</p>
+      </a>
+    </div>
+
+    <hr class="my-10 border-border" />
+
+    <section>
+      <h2 class="text-xl font-bold">Architecture</h2>
+      <p class="mt-3 leading-relaxed text-muted">
+        Users connect only to the public API surface. Paytm login, token exchange,
+        and provider calls are centralized behind the API and private operator scripts.
+        This protects rate limits, credentials, and keeps the upstream stream singleton.
+      </p>
+      <div class="mt-5 grid gap-3 sm:grid-cols-4">
+        <div class="rounded-lg border border-border bg-surface p-4">
+          <span class="text-xs font-semibold uppercase tracking-wider text-accent">api</span>
+          <p class="mt-1 text-sm font-medium">Public edge</p>
+          <p class="text-xs text-muted">HTTP API + WS gateway</p>
+        </div>
+        <div class="rounded-lg border border-border bg-surface p-4">
+          <span class="text-xs font-semibold uppercase tracking-wider text-green">price-ingest</span>
+          <p class="mt-1 text-sm font-medium">Singleton</p>
+          <p class="text-xs text-muted">Upstream Paytm stream owner</p>
+        </div>
+        <div class="rounded-lg border border-border bg-surface p-4">
+          <span class="text-xs font-semibold uppercase tracking-wider text-orange">redis</span>
+          <p class="mt-1 text-sm font-medium">Backplane</p>
+          <p class="text-xs text-muted">Pub/sub, cache, leases</p>
+        </div>
+        <div class="rounded-lg border border-border bg-surface p-4">
+          <span class="text-xs font-semibold uppercase tracking-wider text-muted">catalog-sync</span>
+          <p class="mt-1 text-sm font-medium">Job</p>
+          <p class="text-xs text-muted">Security-master snapshot</p>
+        </div>
+      </div>
+    </section>
+
+    <hr class="my-10 border-border" />
+
+    <section>
+      <h2 class="text-xl font-bold">Security boundary</h2>
+      <p class="mt-3 leading-relaxed text-muted">
+        The following routes intentionally <em class="font-medium text-red">do not exist</em>
+        on the public API: <code class="rounded bg-surface px-1.5 py-0.5 text-sm font-mono text-red">/auth/login</code>,
+        <code class="rounded bg-surface px-1.5 py-0.5 text-sm font-mono text-red">/auth/callback</code>,
+        <code class="rounded bg-surface px-1.5 py-0.5 text-sm font-mono text-red">/auth/session</code>.
+        Paytm login and token exchange run from private CLI scripts only.
+      </p>
+    </section>
+  </main>
+</body>
+</html>

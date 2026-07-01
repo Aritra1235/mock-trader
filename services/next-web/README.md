@@ -20,6 +20,64 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Price WebSocket (frontend integration)
+
+This WebSocket is **price updates only** (LTP/QUOTE). **Chart data stays HTTP** (not over this socket).
+
+**Endpoint**
+
+- Default: `ws://<api-host>:3000/ws/prices` (configurable via API `PRICE_WS_PATH`)
+
+**Client -> Server**
+
+Subscribe:
+
+```json
+{
+  "type": "subscribe",
+  "symbols": [{ "scripId": "3456", "exchangeType": "NSE", "scripType": "EQUITY" }]
+}
+```
+
+Unsubscribe:
+
+```json
+{
+  "type": "unsubscribe",
+  "symbols": [{ "scripId": "3456", "exchangeType": "NSE", "scripType": "EQUITY" }]
+}
+```
+
+**Server -> Client**
+
+On connect:
+
+```json
+{ "type": "connected", "maxSubscriptions": 50, "modeType": "LTP" }
+```
+
+On updates:
+
+```json
+{
+  "type": "price",
+  "data": {
+    "scripId": "3456",
+    "last_price": "123.45",
+    "providerTs": 1747700000,
+    "serverTs": 1747700001,
+    "subscriptionKey": "NSE:EQUITY:LTP:3456"
+  }
+}
+```
+
+**Notes**
+
+- Use **one WebSocket per browser session** and multiplex subscriptions.
+- The server enforces `MAX_PRICE_SUBSCRIPTIONS` per connection (default `50`).
+- Reconnect on disconnect and re-send active subscriptions.
+- `providerTs`/`serverTs` are included for ordering/latency.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

@@ -1,0 +1,1969 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Mock Trader API",
+    "version": "1.0.0",
+    "summary": "HTTP and WebSocket market data API for the Mock Trader backend.",
+    "description": "Public backend surface for Mock Trader. Paytm authentication and token exchange stay behind the backend and are not exposed as public HTTP endpoints. This document covers the implemented REST endpoints and the market data WebSocket contract.",
+    "contact": {
+      "name": "Mock Trader"
+    }
+  },
+  "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Local development HTTP server"
+    },
+    {
+      "url": "ws://localhost:3000",
+      "description": "Local development WebSocket server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "System",
+      "description": "Service health, readiness, and discovery endpoints."
+    },
+    {
+      "name": "Market",
+      "description": "Instrument search, quotes, candles, and upstream market metadata."
+    },
+    {
+      "name": "Documentation",
+      "description": "Static HTML and Markdown documentation served by the API."
+    },
+    {
+      "name": "WebSocket",
+      "description": "Bidirectional market subscription and quote streaming contract."
+    }
+  ],
+  "paths": {
+    "/": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "operationId": "getRoot",
+        "summary": "Get service overview",
+        "description": "Returns a lightweight service descriptor with the docs entrypoint and configured WebSocket path.",
+        "responses": {
+          "200": {
+            "description": "Service metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RootResponse"
+                },
+                "examples": {
+                  "default": {
+                    "value": {
+                      "service": "mock-trader-api",
+                      "status": "ok",
+                      "docs": "/docs/index.html",
+                      "websocket": "/ws/market"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "operationId": "getHealth",
+        "summary": "Get process health",
+        "description": "Returns lightweight liveness information for the API process only.",
+        "responses": {
+          "200": {
+            "description": "API process is reachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ready": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "operationId": "getReadiness",
+        "summary": "Get readiness status",
+        "description": "Performs a deeper preflight check across Redis, subscription lease storage, Paytm readable session tokens, and the instrument catalog. Returns `503` when one or more dependencies are unavailable.",
+        "responses": {
+          "200": {
+            "description": "All readiness checks passed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessResponse"
+                },
+                "examples": {
+                  "ready": {
+                    "value": {
+                      "ready": true,
+                      "checks": {
+                        "redis": true,
+                        "subscriptionLeases": true,
+                        "paytmSession": true,
+                        "catalog": true
+                      },
+                      "service": "mock-trader-api",
+                      "catalogCount": 24873,
+                      "catalogSyncedAt": "2026-06-29T14:05:00.000Z",
+                      "websocketPath": "/ws/market"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "One or more readiness checks failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessResponse"
+                },
+                "examples": {
+                  "notReady": {
+                    "value": {
+                      "ready": false,
+                      "checks": {
+                        "redis": true,
+                        "subscriptionLeases": true,
+                        "paytmSession": false,
+                        "catalog": true
+                      },
+                      "service": "mock-trader-api",
+                      "catalogCount": 24873,
+                      "catalogSyncedAt": "2026-06-29T14:05:00.000Z",
+                      "websocketPath": "/ws/market"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/market/stats": {
+      "get": {
+        "tags": [
+          "Market"
+        ],
+        "operationId": "getMarketStats",
+        "summary": "Get market service metadata",
+        "description": "Returns catalog status and stream configuration data exposed to clients.",
+        "responses": {
+          "200": {
+            "description": "Market metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketStatsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/market/instruments/search": {
+      "get": {
+        "tags": [
+          "Market"
+        ],
+        "operationId": "searchInstruments",
+        "summary": "Search instruments",
+        "description": "Searches the locally cached security master snapshot by symbol, security id, or name. When `q` is omitted, the endpoint returns the first page of instruments after optional exchange and scrip type filtering.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/InstrumentQuery"
+          },
+          {
+            "$ref": "#/components/parameters/InstrumentLimit"
+          },
+          {
+            "$ref": "#/components/parameters/InstrumentExchange"
+          },
+          {
+            "$ref": "#/components/parameters/InstrumentScripType"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching instruments",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InstrumentRecord"
+                  }
+                },
+                "examples": {
+                  "searchResult": {
+                    "value": [
+                      {
+                        "instrumentKey": "NSE:EQUITY:3456",
+                        "securityId": "3456",
+                        "symbol": "RELIANCE",
+                        "name": "Reliance Industries Limited",
+                        "series": "EQ",
+                        "exchange": "NSE",
+                        "segment": "C",
+                        "instrumentType": "EQ",
+                        "scripType": "EQUITY",
+                        "tickSize": 0.05,
+                        "lotSize": 1,
+                        "upperLimit": 1650,
+                        "lowerLimit": 1350,
+                        "expiryDate": null,
+                        "strikePrice": null,
+                        "freezeQuantity": 50000,
+                        "searchableText": "reliance reliance industries limited nse eq 3456"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/market/instruments/{id}": {
+      "get": {
+        "tags": [
+          "Market"
+        ],
+        "operationId": "getInstrument",
+        "summary": "Resolve a single instrument",
+        "description": "Resolves an instrument by instrument key, security id, or symbol.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/InstrumentId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resolved instrument",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstrumentRecord"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Instrument was not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "notFound": {
+                    "value": {
+                      "error": "instrument not found"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/market/quotes": {
+      "get": {
+        "tags": [
+          "Market"
+        ],
+        "operationId": "getQuotes",
+        "summary": "Get latest quotes",
+        "description": "Returns the latest cached quote envelope for each resolved instrument. Missing or stale quotes are refreshed through the backend before the response is returned.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/QuoteIds"
+          },
+          {
+            "$ref": "#/components/parameters/QuoteMode"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Quote envelopes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuoteResponse"
+                },
+                "examples": {
+                  "quotes": {
+                    "value": {
+                      "data": [
+                        {
+                          "instrument": {
+                            "instrumentKey": "NSE:EQUITY:3456",
+                            "securityId": "3456",
+                            "symbol": "RELIANCE",
+                            "name": "Reliance Industries Limited",
+                            "series": "EQ",
+                            "exchange": "NSE",
+                            "segment": "C",
+                            "instrumentType": "EQ",
+                            "scripType": "EQUITY",
+                            "tickSize": 0.05,
+                            "lotSize": 1,
+                            "upperLimit": 1650,
+                            "lowerLimit": 1350,
+                            "expiryDate": null,
+                            "strikePrice": null,
+                            "freezeQuantity": 50000,
+                            "searchableText": "reliance reliance industries limited nse eq 3456"
+                          },
+                          "quote": {
+                            "instrumentKey": "NSE:EQUITY:3456",
+                            "securityId": "3456",
+                            "exchangeType": "NSE",
+                            "scripType": "EQUITY",
+                            "modeType": "QUOTE",
+                            "found": true,
+                            "tradable": true,
+                            "lastPrice": 1500.25,
+                            "changePercent": 1,
+                            "changeAbsolute": 15,
+                            "lastTradeTime": "2026-06-29T09:45:00.000Z",
+                            "lastUpdateTime": null,
+                            "lastTradedQuantity": 10,
+                            "averageTradedPrice": 1498,
+                            "volumeTraded": 1000,
+                            "totalBuyQuantity": 100,
+                            "totalSellQuantity": 120,
+                            "ohlc": {
+                              "open": 1480,
+                              "high": 1510,
+                              "low": 1475,
+                              "close": 1485
+                            },
+                            "week52High": 1600,
+                            "week52Low": 1200,
+                            "oi": null,
+                            "changeOi": null,
+                            "depth": null,
+                            "providerTs": 1782726300000,
+                            "receivedAt": "2026-06-29T09:45:03.000Z",
+                            "raw": {}
+                          },
+                          "stale": false
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Required query parameter is missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "missingIds": {
+                    "value": {
+                      "error": "ids query parameter is required"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/market/candles/{id}": {
+      "get": {
+        "tags": [
+          "Market"
+        ],
+        "operationId": "getCandles",
+        "summary": "Get candles for an instrument",
+        "description": "Returns stored 1-minute candles or server-aggregated higher intervals for a resolved instrument.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/InstrumentId"
+          },
+          {
+            "$ref": "#/components/parameters/CandleInterval"
+          },
+          {
+            "$ref": "#/components/parameters/CandleFrom"
+          },
+          {
+            "$ref": "#/components/parameters/CandleTo"
+          },
+          {
+            "$ref": "#/components/parameters/CandleLimit"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Candle series",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CandleResponse"
+                },
+                "examples": {
+                  "candles": {
+                    "value": {
+                      "instrument": {
+                        "instrumentKey": "NSE:EQUITY:3456",
+                        "securityId": "3456",
+                        "symbol": "RELIANCE",
+                        "name": "Reliance Industries Limited",
+                        "series": "EQ",
+                        "exchange": "NSE",
+                        "segment": "C",
+                        "instrumentType": "EQ",
+                        "scripType": "EQUITY",
+                        "tickSize": 0.05,
+                        "lotSize": 1,
+                        "upperLimit": 1650,
+                        "lowerLimit": 1350,
+                        "expiryDate": null,
+                        "strikePrice": null,
+                        "freezeQuantity": 50000,
+                        "searchableText": "reliance reliance industries limited nse eq 3456"
+                      },
+                      "interval": "5m",
+                      "candles": [
+                        {
+                          "bucketStart": 1782726300000,
+                          "intervalMs": 300000,
+                          "open": 1490,
+                          "high": 1504,
+                          "low": 1488,
+                          "close": 1500.25,
+                          "volume": 7250,
+                          "trades": 48,
+                          "lastUpdatedAt": 1782726599000
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Instrument was not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/market/provider/chart": {
+      "get": {
+        "tags": [
+          "Market"
+        ],
+        "operationId": "getProviderChart",
+        "summary": "Proxy provider chart data",
+        "description": "Proxies chart data from the upstream provider using the exact query parameters supplied by the caller. This is a thin pass-through endpoint, so the success payload shape is intentionally open-ended.",
+        "parameters": [
+          {
+            "name": "interval",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Example provider parameter. The backend forwards arbitrary string query parameters upstream."
+          },
+          {
+            "name": "symbol",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Example provider parameter. Additional provider-specific query parameters may also be supplied."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Provider chart response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderChartResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No provider query parameters were supplied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "missingParams": {
+                    "value": {
+                      "error": "provider chart query parameters are required"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream provider request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderChartErrorResponse"
+                },
+                "examples": {
+                  "providerError": {
+                    "value": {
+                      "error": "provider chart request failed",
+                      "message": "upstream returned 500"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/docs": {
+      "get": {
+        "tags": [
+          "Documentation"
+        ],
+        "operationId": "getDocsRedirect",
+        "summary": "Redirect to docs index",
+        "responses": {
+          "302": {
+            "description": "Redirects to `/docs/index.html`",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redirect target"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/docs/": {
+      "get": {
+        "tags": [
+          "Documentation"
+        ],
+        "operationId": "getDocsSlashRedirect",
+        "summary": "Redirect to docs index",
+        "responses": {
+          "302": {
+            "description": "Redirects to `/docs/index.html`"
+          }
+        }
+      }
+    },
+    "/docs/index.html": {
+      "get": {
+        "tags": [
+          "Documentation"
+        ],
+        "operationId": "getDocsIndex",
+        "summary": "Get HTML docs index",
+        "responses": {
+          "200": {
+            "description": "Static HTML page",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/docs/{name}": {
+      "get": {
+        "tags": [
+          "Documentation"
+        ],
+        "operationId": "getNamedHtmlDoc",
+        "summary": "Get a named HTML doc page",
+        "description": "Returns one of the HTML docs pages. Supported names are `api`, `api.html`, `dev`, `dev.html`, `deploy`, `deploy.html`, and `index.html`.",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "api",
+                "api.html",
+                "dev",
+                "dev.html",
+                "deploy",
+                "deploy.html",
+                "index.html"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Static HTML page",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown docs page",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "const": "Not found"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/docs/md/{name}": {
+      "get": {
+        "tags": [
+          "Documentation"
+        ],
+        "operationId": "getNamedMarkdownDoc",
+        "summary": "Get a named Markdown doc page",
+        "description": "Returns one of the Markdown docs pages. Supported names are `api`, `api.md`, `dev`, `dev.md`, `deploy`, and `deploy.md`.",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "api",
+                "api.md",
+                "dev",
+                "dev.md",
+                "deploy",
+                "deploy.md"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Markdown document",
+            "content": {
+              "text/markdown": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown docs page",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "const": "Not found"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ws/market": {
+      "get": {
+        "tags": [
+          "WebSocket"
+        ],
+        "operationId": "connectMarketWebSocket",
+        "summary": "Upgrade to the market data WebSocket",
+        "description": "Initiates an HTTP upgrade to a WebSocket connection for live quote streaming. OpenAPI does not natively model WebSocket channels, so the detailed message contract is described with vendor extensions on this operation.",
+        "responses": {
+          "101": {
+            "description": "Switching Protocols"
+          }
+        },
+        "x-websocket": {
+          "path": "/ws/market",
+          "subprotocols": [],
+          "clientMessages": [
+            {
+              "$ref": "#/components/x-websocketMessages/PingMessage"
+            },
+            {
+              "$ref": "#/components/x-websocketMessages/SubscribeMessage"
+            },
+            {
+              "$ref": "#/components/x-websocketMessages/UnsubscribeMessage"
+            }
+          ],
+          "serverMessages": [
+            {
+              "$ref": "#/components/x-websocketMessages/ConnectedMessage"
+            },
+            {
+              "$ref": "#/components/x-websocketMessages/PongMessage"
+            },
+            {
+              "$ref": "#/components/x-websocketMessages/SubscribedMessage"
+            },
+            {
+              "$ref": "#/components/x-websocketMessages/UnsubscribedMessage"
+            },
+            {
+              "$ref": "#/components/x-websocketMessages/QuoteStreamMessage"
+            },
+            {
+              "$ref": "#/components/x-websocketMessages/ErrorSocketMessage"
+            }
+          ],
+          "notes": [
+            "Clients receive a `connected` event immediately after the socket opens.",
+            "Message payloads must be valid JSON encoded as text or binary UTF-8.",
+            "Unknown message types produce an `error` message.",
+            "Subscription preferences are deduplicated by `instrumentKey` plus `modeType`.",
+            "The server enforces a maximum number of active subscriptions per client."
+          ]
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "InstrumentId": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "description": "Instrument key, security id, or symbol.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "InstrumentQuery": {
+        "name": "q",
+        "in": "query",
+        "required": false,
+        "description": "Free-text instrument search term.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "InstrumentLimit": {
+        "name": "limit",
+        "in": "query",
+        "required": false,
+        "description": "Maximum number of records to return. Defaults to 20 when omitted or invalid.",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 20
+        }
+      },
+      "InstrumentExchange": {
+        "name": "exchange",
+        "in": "query",
+        "required": false,
+        "description": "Optional exchange filter, for example `NSE` or `BSE`.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "InstrumentScripType": {
+        "name": "scripType",
+        "in": "query",
+        "required": false,
+        "description": "Optional scrip type filter, for example `EQUITY`, `INDEX`, `ETF`, `FUTURE`, or `OPTION`.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "QuoteIds": {
+        "name": "ids",
+        "in": "query",
+        "required": true,
+        "description": "Comma-separated list of instrument keys, security ids, or symbols.",
+        "schema": {
+          "type": "string"
+        },
+        "example": "RELIANCE,3456"
+      },
+      "QuoteMode": {
+        "name": "mode",
+        "in": "query",
+        "required": false,
+        "description": "Requested quote detail level. Invalid values fall back to the configured upstream mode.",
+        "schema": {
+          "$ref": "#/components/schemas/MarketMode"
+        }
+      },
+      "CandleInterval": {
+        "name": "interval",
+        "in": "query",
+        "required": false,
+        "description": "Candle interval. Supported by the implementation: `1m`, `5m`, `15m`, `1h`, and `1d`. Unknown values fall back to 1 minute aggregation.",
+        "schema": {
+          "type": "string",
+          "default": "1m"
+        }
+      },
+      "CandleFrom": {
+        "name": "from",
+        "in": "query",
+        "required": false,
+        "description": "Inclusive ISO-8601 start timestamp. Defaults to 6 hours before the request time when omitted or invalid.",
+        "schema": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "CandleTo": {
+        "name": "to",
+        "in": "query",
+        "required": false,
+        "description": "Inclusive ISO-8601 end timestamp. Defaults to the request time when omitted or invalid.",
+        "schema": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "CandleLimit": {
+        "name": "limit",
+        "in": "query",
+        "required": false,
+        "description": "Maximum number of 1-minute base candles to load before optional server-side aggregation. Defaults to 1000 when omitted or invalid.",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1000
+        }
+      }
+    },
+    "schemas": {
+      "MarketMode": {
+        "type": "string",
+        "enum": [
+          "LTP",
+          "QUOTE",
+          "FULL"
+        ],
+        "description": "Requested market data detail level."
+      },
+      "RootResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "service",
+          "status",
+          "docs",
+          "websocket"
+        ],
+        "properties": {
+          "service": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "const": "ok"
+          },
+          "docs": {
+            "type": "string"
+          },
+          "websocket": {
+            "type": "string"
+          }
+        }
+      },
+      "HealthResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "status",
+          "service"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ok"
+          },
+          "service": {
+            "type": "string"
+          }
+        }
+      },
+      "ReadinessChecks": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "redis",
+          "subscriptionLeases",
+          "paytmSession",
+          "catalog"
+        ],
+        "properties": {
+          "redis": {
+            "type": "boolean"
+          },
+          "subscriptionLeases": {
+            "type": "boolean"
+          },
+          "paytmSession": {
+            "type": "boolean"
+          },
+          "catalog": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ReadinessResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "ready",
+          "checks",
+          "service",
+          "catalogCount",
+          "catalogSyncedAt",
+          "websocketPath"
+        ],
+        "properties": {
+          "ready": {
+            "type": "boolean"
+          },
+          "checks": {
+            "$ref": "#/components/schemas/ReadinessChecks"
+          },
+          "service": {
+            "type": "string"
+          },
+          "catalogCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "catalogSyncedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "websocketPath": {
+            "type": "string"
+          }
+        }
+      },
+      "MarketStatsResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "catalogCount",
+          "catalogSyncedAt",
+          "upstreamMode",
+          "websocketPath"
+        ],
+        "properties": {
+          "catalogCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "catalogSyncedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "upstreamMode": {
+            "$ref": "#/components/schemas/MarketMode"
+          },
+          "websocketPath": {
+            "type": "string"
+          }
+        }
+      },
+      "InstrumentRecord": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "instrumentKey",
+          "securityId",
+          "symbol",
+          "name",
+          "series",
+          "exchange",
+          "segment",
+          "instrumentType",
+          "scripType",
+          "tickSize",
+          "lotSize",
+          "upperLimit",
+          "lowerLimit",
+          "expiryDate",
+          "strikePrice",
+          "freezeQuantity",
+          "searchableText"
+        ],
+        "properties": {
+          "instrumentKey": {
+            "type": "string"
+          },
+          "securityId": {
+            "type": "string"
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "series": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "exchange": {
+            "type": "string"
+          },
+          "segment": {
+            "type": "string"
+          },
+          "instrumentType": {
+            "type": "string"
+          },
+          "scripType": {
+            "type": "string"
+          },
+          "tickSize": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "lotSize": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "upperLimit": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "lowerLimit": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "expiryDate": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "strikePrice": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "freezeQuantity": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "searchableText": {
+            "type": "string"
+          }
+        }
+      },
+      "QuoteDepthLevel": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "quantity",
+          "price",
+          "orders"
+        ],
+        "properties": {
+          "quantity": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "price": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "orders": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        }
+      },
+      "QuoteDepth": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "buy",
+          "sell"
+        ],
+        "properties": {
+          "buy": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuoteDepthLevel"
+            }
+          },
+          "sell": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuoteDepthLevel"
+            }
+          }
+        }
+      },
+      "Ohlc": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "open",
+          "high",
+          "low",
+          "close"
+        ],
+        "properties": {
+          "open": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "high": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "low": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "close": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        }
+      },
+      "QuotePayload": {
+        "type": "object",
+        "required": [
+          "instrumentKey",
+          "securityId",
+          "exchangeType",
+          "scripType",
+          "modeType",
+          "found",
+          "tradable",
+          "lastPrice",
+          "changePercent",
+          "changeAbsolute",
+          "lastTradeTime",
+          "lastUpdateTime",
+          "lastTradedQuantity",
+          "averageTradedPrice",
+          "volumeTraded",
+          "totalBuyQuantity",
+          "totalSellQuantity",
+          "ohlc",
+          "week52High",
+          "week52Low",
+          "oi",
+          "changeOi",
+          "depth",
+          "providerTs",
+          "receivedAt",
+          "raw"
+        ],
+        "properties": {
+          "instrumentKey": {
+            "type": "string"
+          },
+          "securityId": {
+            "type": "string"
+          },
+          "exchangeType": {
+            "type": "string"
+          },
+          "scripType": {
+            "type": "string"
+          },
+          "modeType": {
+            "$ref": "#/components/schemas/MarketMode"
+          },
+          "found": {
+            "type": "boolean"
+          },
+          "tradable": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "lastPrice": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "changePercent": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "changeAbsolute": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "lastTradeTime": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "lastUpdateTime": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "lastTradedQuantity": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "averageTradedPrice": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "volumeTraded": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "totalBuyQuantity": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "totalSellQuantity": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "ohlc": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Ohlc"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "week52High": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "week52Low": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "oi": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "changeOi": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "depth": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/QuoteDepth"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "providerTs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Provider timestamp in Unix milliseconds when available."
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "raw": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "QuoteEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "instrument",
+          "quote",
+          "stale"
+        ],
+        "properties": {
+          "instrument": {
+            "$ref": "#/components/schemas/InstrumentRecord"
+          },
+          "quote": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/QuotePayload"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stale": {
+            "type": "boolean"
+          }
+        }
+      },
+      "QuoteResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuoteEnvelope"
+            }
+          }
+        }
+      },
+      "CandleRecord": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "bucketStart",
+          "intervalMs",
+          "open",
+          "high",
+          "low",
+          "close",
+          "volume",
+          "trades",
+          "lastUpdatedAt"
+        ],
+        "properties": {
+          "bucketStart": {
+            "type": "integer",
+            "description": "Bucket start in Unix milliseconds."
+          },
+          "intervalMs": {
+            "type": "integer"
+          },
+          "open": {
+            "type": "number"
+          },
+          "high": {
+            "type": "number"
+          },
+          "low": {
+            "type": "number"
+          },
+          "close": {
+            "type": "number"
+          },
+          "volume": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "trades": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "lastUpdatedAt": {
+            "type": "integer",
+            "description": "Last update timestamp in Unix milliseconds."
+          }
+        }
+      },
+      "CandleResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "instrument",
+          "interval",
+          "candles"
+        ],
+        "properties": {
+          "instrument": {
+            "$ref": "#/components/schemas/InstrumentRecord"
+          },
+          "interval": {
+            "type": "string"
+          },
+          "candles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CandleRecord"
+            }
+          }
+        }
+      },
+      "ProviderChartResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "Opaque upstream chart payload forwarded from the provider."
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        }
+      },
+      "ProviderChartErrorResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "error",
+          "message"
+        ],
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "SocketClientSymbolSelector": {
+        "type": "object",
+        "description": "A single subscription selector. The server accepts multiple selector styles and resolves them to a normalized subscription preference.",
+        "properties": {
+          "instrumentKey": {
+            "type": "string"
+          },
+          "securityId": {
+            "type": "string"
+          },
+          "scripId": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "exchangeType": {
+            "type": "string"
+          },
+          "scripType": {
+            "type": "string"
+          },
+          "modeType": {
+            "$ref": "#/components/schemas/MarketMode"
+          }
+        },
+        "additionalProperties": true
+      },
+      "SubscriptionPreference": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "instrumentKey",
+          "securityId",
+          "exchangeType",
+          "scripType",
+          "modeType"
+        ],
+        "properties": {
+          "instrumentKey": {
+            "type": "string"
+          },
+          "securityId": {
+            "type": "string"
+          },
+          "exchangeType": {
+            "type": "string"
+          },
+          "scripType": {
+            "type": "string"
+          },
+          "modeType": {
+            "$ref": "#/components/schemas/MarketMode"
+          }
+        }
+      },
+      "SocketConnectedMessage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "gatewayId",
+          "upstreamMode",
+          "maxSubscriptions"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "connected"
+          },
+          "gatewayId": {
+            "type": "string"
+          },
+          "upstreamMode": {
+            "$ref": "#/components/schemas/MarketMode"
+          },
+          "maxSubscriptions": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "SocketPingMessage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "ping"
+          }
+        }
+      },
+      "SocketPongMessage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "pong"
+          }
+        }
+      },
+      "SocketSubscribeMessage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "symbols"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "subscribe"
+          },
+          "symbols": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SocketClientSymbolSelector"
+            },
+            "minItems": 1
+          },
+          "modeType": {
+            "$ref": "#/components/schemas/MarketMode"
+          }
+        }
+      },
+      "SocketUnsubscribeMessage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "symbols"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "unsubscribe"
+          },
+          "symbols": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SocketClientSymbolSelector"
+            },
+            "minItems": 1
+          }
+        }
+      },
+      "SocketSubscriptionAckMessage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "count",
+          "symbols"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "subscribed",
+              "unsubscribed"
+            ]
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "symbols": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SubscriptionPreference"
+            }
+          }
+        }
+      },
+      "SocketQuoteMessage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "data"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "quote"
+          },
+          "data": {
+            "$ref": "#/components/schemas/QuotePayload"
+          }
+        }
+      },
+      "SocketErrorMessage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "message"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "error"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "x-websocketMessages": {
+      "ConnectedMessage": {
+        "name": "connected",
+        "direction": "server-to-client",
+        "schema": {
+          "$ref": "#/components/schemas/SocketConnectedMessage"
+        },
+        "examples": [
+          {
+            "type": "connected",
+            "gatewayId": "gateway-app",
+            "upstreamMode": "QUOTE",
+            "maxSubscriptions": 100
+          }
+        ]
+      },
+      "PingMessage": {
+        "name": "ping",
+        "direction": "client-to-server",
+        "schema": {
+          "$ref": "#/components/schemas/SocketPingMessage"
+        },
+        "examples": [
+          {
+            "type": "ping"
+          }
+        ]
+      },
+      "PongMessage": {
+        "name": "pong",
+        "direction": "server-to-client",
+        "schema": {
+          "$ref": "#/components/schemas/SocketPongMessage"
+        },
+        "examples": [
+          {
+            "type": "pong"
+          }
+        ]
+      },
+      "SubscribeMessage": {
+        "name": "subscribe",
+        "direction": "client-to-server",
+        "schema": {
+          "$ref": "#/components/schemas/SocketSubscribeMessage"
+        },
+        "examples": [
+          {
+            "type": "subscribe",
+            "symbols": [
+              {
+                "symbol": "RELIANCE"
+              },
+              {
+                "scripId": "13",
+                "exchangeType": "NSE",
+                "scripType": "INDEX"
+              }
+            ],
+            "modeType": "QUOTE"
+          }
+        ]
+      },
+      "UnsubscribeMessage": {
+        "name": "unsubscribe",
+        "direction": "client-to-server",
+        "schema": {
+          "$ref": "#/components/schemas/SocketUnsubscribeMessage"
+        },
+        "examples": [
+          {
+            "type": "unsubscribe",
+            "symbols": [
+              {
+                "symbol": "RELIANCE"
+              }
+            ]
+          }
+        ]
+      },
+      "SubscribedMessage": {
+        "name": "subscribed",
+        "direction": "server-to-client",
+        "schema": {
+          "$ref": "#/components/schemas/SocketSubscriptionAckMessage"
+        },
+        "examples": [
+          {
+            "type": "subscribed",
+            "count": 1,
+            "symbols": [
+              {
+                "instrumentKey": "NSE:EQUITY:3456",
+                "securityId": "3456",
+                "exchangeType": "NSE",
+                "scripType": "EQUITY",
+                "modeType": "QUOTE"
+              }
+            ]
+          }
+        ]
+      },
+      "UnsubscribedMessage": {
+        "name": "unsubscribed",
+        "direction": "server-to-client",
+        "schema": {
+          "$ref": "#/components/schemas/SocketSubscriptionAckMessage"
+        },
+        "examples": [
+          {
+            "type": "unsubscribed",
+            "count": 1,
+            "symbols": [
+              {
+                "instrumentKey": "NSE:EQUITY:3456",
+                "securityId": "3456",
+                "exchangeType": "NSE",
+                "scripType": "EQUITY",
+                "modeType": "QUOTE"
+              }
+            ]
+          }
+        ]
+      },
+      "QuoteStreamMessage": {
+        "name": "quote",
+        "direction": "server-to-client",
+        "schema": {
+          "$ref": "#/components/schemas/SocketQuoteMessage"
+        },
+        "examples": [
+          {
+            "type": "quote",
+            "data": {
+              "instrumentKey": "NSE:EQUITY:3456",
+              "securityId": "3456",
+              "exchangeType": "NSE",
+              "scripType": "EQUITY",
+              "modeType": "QUOTE",
+              "found": true,
+              "tradable": true,
+              "lastPrice": 1500.25,
+              "changePercent": 1,
+              "changeAbsolute": 15,
+              "lastTradeTime": "2026-06-29T09:45:00.000Z",
+              "lastUpdateTime": null,
+              "lastTradedQuantity": 10,
+              "averageTradedPrice": 1498,
+              "volumeTraded": 1000,
+              "totalBuyQuantity": 100,
+              "totalSellQuantity": 120,
+              "ohlc": {
+                "open": 1480,
+                "high": 1510,
+                "low": 1475,
+                "close": 1485
+              },
+              "week52High": 1600,
+              "week52Low": 1200,
+              "oi": null,
+              "changeOi": null,
+              "depth": null,
+              "providerTs": 1782726300000,
+              "receivedAt": "2026-06-29T09:45:03.000Z",
+              "raw": {}
+            }
+          }
+        ]
+      },
+      "ErrorSocketMessage": {
+        "name": "error",
+        "direction": "server-to-client",
+        "schema": {
+          "$ref": "#/components/schemas/SocketErrorMessage"
+        },
+        "examples": [
+          {
+            "type": "error",
+            "message": "Invalid JSON"
+          },
+          {
+            "type": "error",
+            "message": "No valid symbols supplied"
+          },
+          {
+            "type": "error",
+            "message": "Subscription limit exceeded (100)"
+          },
+          {
+            "type": "error",
+            "message": "Unknown message type"
+          }
+        ]
+      }
+    }
+  }
+}

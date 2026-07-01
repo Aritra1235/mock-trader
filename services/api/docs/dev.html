@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Development Guide — Mock Trader</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            base: '#0b1117',
+            surface: '#121a24',
+            border: '#1e293b',
+            muted: '#8b95a5',
+            text: '#e2e8f0',
+            accent: '#60a5fa',
+            green: '#22c55e',
+            orange: '#fb923c',
+            red: '#f87171',
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
+          },
+        },
+      },
+    };
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    * { scrollbar-width: thin; scrollbar-color: #1e293b transparent; }
+    body { background: #0b1117; }
+    html { scroll-behavior: smooth; }
+    ::selection { background: #3b82f6; color: #fff; }
+    .sidebar-link { transition: all 0.12s ease; border-left: 2px solid transparent; }
+    .sidebar-link:hover { background: #1e293b; }
+    pre::-webkit-scrollbar { height: 6px; }
+    pre::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+    code { font-size: 0.875em; }
+    h2[id]::before, h3[id]::before { content: ''; display: block; height: 64px; margin: -64px 0 0; }
+    .step-number { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 8px; background: #1e293b; color: #60a5fa; font-size: 0.75rem; font-weight: 700; flex-shrink: 0; }
+    .key { color: #f472b6; }
+    .str { color: #22c55e; }
+    .num { color: #60a5fa; }
+    .bool { color: #fbbf24; }
+  </style>
+</head>
+<body class="font-sans text-text antialiased">
+  <nav class="fixed top-0 z-50 flex h-14 w-full items-center border-b border-border bg-base/95 backdrop-blur-sm">
+    <div class="mx-auto flex w-full max-w-6xl items-center justify-between px-6">
+      <a href="/docs/index.html" class="flex items-center gap-2 text-base font-semibold tracking-tight">
+        <span class="flex h-7 w-7 items-center justify-center rounded-md bg-accent text-xs font-bold text-base">MT</span>
+        <span>Mock Trader</span>
+      </a>
+      <div class="flex items-center gap-1 text-sm">
+        <a href="/docs/api" class="rounded-lg px-3 py-1.5 font-medium text-muted hover:bg-surface hover:text-text">API</a>
+        <a href="/docs/dev" class="rounded-lg px-3 py-1.5 font-medium text-accent bg-surface">Dev</a>
+        <a href="/docs/deploy" class="rounded-lg px-3 py-1.5 font-medium text-muted hover:bg-surface hover:text-text">Deploy</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="mx-auto flex w-full max-w-6xl pt-14">
+    <aside class="hidden w-56 shrink-0 border-r border-border px-3 py-8 lg:block">
+      <nav class="sticky top-20 flex flex-col gap-1 text-sm">
+        <span class="mb-1 px-3 text-xs font-semibold uppercase tracking-widest text-muted">Dev Guide</span>
+        <a href="#boundary" class="sidebar-link rounded-md px-3 py-1.5 text-muted hover:text-text">Security boundary</a>
+        <a href="#prerequisites" class="sidebar-link rounded-md px-3 py-1.5 text-muted hover:text-text">Prerequisites</a>
+        <a href="#workflow" class="sidebar-link rounded-md px-3 py-1.5 text-muted hover:text-text">Local workflow</a>
+        <a href="#paytm-login" class="sidebar-link rounded-md px-3 py-1.5 text-muted hover:text-text">Paytm login flow</a>
+        <a href="#verification" class="sidebar-link rounded-md px-3 py-1.5 text-muted hover:text-text">Verification</a>
+        <a href="#testing" class="sidebar-link rounded-md px-3 py-1.5 text-muted hover:text-text">Testing</a>
+        <a href="#troubleshooting" class="sidebar-link rounded-md px-3 py-1.5 text-muted hover:text-text">Troubleshooting</a>
+      </nav>
+    </aside>
+
+    <div class="min-w-0 flex-1 px-6 py-10 pb-32">
+      <h1 class="text-3xl font-extrabold tracking-tight">Development Guide</h1>
+      <p class="mt-2 leading-relaxed text-muted">
+        Set up a local development environment that mirrors production without
+        exposing Paytm credentials or token flows to the browser surface.
+      </p>
+
+      <!-- Security boundary -->
+      <section id="boundary" class="mt-10">
+        <h2 class="text-xl font-bold">Security boundary</h2>
+        <p class="mt-3 leading-relaxed text-muted">
+          Users interact with your site and your backend only. Paytm login, token
+          exchange, and session inspection are private operator functions exposed
+          through CLI scripts, <strong class="text-red">not HTTP routes</strong>.
+        </p>
+        <div class="mt-5 grid gap-3 sm:grid-cols-2">
+          <div class="rounded-xl border border-border bg-surface p-5">
+            <span class="inline-block rounded-md bg-green/10 px-2 py-0.5 text-xs font-semibold text-green">Public</span>
+            <h3 class="mt-3 font-semibold">API surface</h3>
+            <ul class="mt-2 space-y-1 text-sm text-muted">
+              <li>— REST endpoints for market data</li>
+              <li>— WebSocket gateway at /ws/market</li>
+              <li>— Readiness checks</li>
+            </ul>
+          </div>
+          <div class="rounded-xl border border-border bg-surface p-5">
+            <span class="inline-block rounded-md bg-orange/10 px-2 py-0.5 text-xs font-semibold text-orange">Private</span>
+            <h3 class="mt-3 font-semibold">Operator scripts</h3>
+            <ul class="mt-2 space-y-1 text-sm text-muted">
+              <li>— Paytm login URL generation</li>
+              <li>— Token exchange</li>
+              <li>— Session inspection</li>
+              <li>— Provider data verification</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- Prerequisites -->
+      <section id="prerequisites" class="mt-12">
+        <h2 class="text-xl font-bold">Prerequisites</h2>
+        <table class="mt-4 w-full border-collapse text-sm">
+          <thead><tr class="text-muted text-xs"><th class="px-3 py-2 text-left font-semibold">Tool</th><th class="px-3 py-2 text-left font-semibold">Version</th><th class="px-3 py-2 text-left font-semibold">Required for</th></tr></thead>
+          <tbody class="divide-y divide-border">
+            <tr><td class="px-3 py-2 font-mono text-xs">Bun</td><td class="px-3 py-2 text-xs">>= 1.1</td><td class="px-3 py-2 text-xs text-muted">Runtime, package manager, script runner.</td></tr>
+            <tr><td class="px-3 py-2 font-mono text-xs">Docker</td><td class="px-3 py-2 text-xs">>= 24</td><td class="px-3 py-2 text-xs text-muted">Redis container via Compose.</td></tr>
+            <tr><td class="px-3 py-2 font-mono text-xs">Paytm SmartConnect account</td><td class="px-3 py-2 text-xs">—</td><td class="px-3 py-2 text-xs text-muted">API keys for upstream market data.</td></tr>
+          </tbody>
+        </table>
+
+        <div class="mt-4 rounded-xl border border-border bg-surface p-5">
+          <p class="text-sm font-medium text-muted">Environment variables</p>
+          <p class="mt-1 text-sm text-muted">
+            Your Paytm API key, secret, and other credentials should be set in a
+            <code class="rounded bg-base px-1 font-mono text-text">.env</code> file at
+            <code class="rounded bg-base px-1 font-mono text-text">services/api/.env</code>.
+            See <code class="rounded bg-base px-1 font-mono text-text">.env.example</code> for the required keys.
+          </p>
+        </div>
+      </section>
+
+      <!-- Local workflow -->
+      <section id="workflow" class="mt-12">
+        <h2 class="text-xl font-bold">Local workflow</h2>
+        <p class="mt-3 leading-relaxed text-muted">
+          Start services in dependency order. Redis must be running before the API,
+          and the catalog should be synced before market commands work. Each step
+          runs in a separate terminal unless backgrounded.
+        </p>
+
+        <div class="mt-6 space-y-4">
+          <div class="rounded-xl border border-border bg-surface p-5">
+            <div class="flex items-start gap-3">
+              <span class="step-number">1</span>
+              <div class="min-w-0 flex-1">
+                <h3 class="font-semibold">Start Redis</h3>
+                <p class="text-sm text-muted">Spin up the Redis container via Docker Compose:</p>
+                <pre class="mt-2 overflow-x-auto rounded-lg bg-base p-3 font-mono text-sm text-text">docker compose -f deploy/docker-compose.yml up redis</pre>
+                <p class="mt-1 text-xs text-muted">
+                  Redis acts as the backplane: pub/sub message bus, quote cache,
+                  subscription lease storage, and candle cache. It must be reachable
+                  on port 6379.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="rounded-xl border border-border bg-surface p-5">
+            <div class="flex items-start gap-3">
+              <span class="step-number">2</span>
+              <div class="min-w-0 flex-1">
+                <h3 class="font-semibold">Sync the instrument catalog</h3>
+                <p class="text-sm text-muted">Refresh the local Paytm security-master snapshot:</p>
+                <pre class="mt-2 overflow-x-auto rounded-lg bg-base p-3 font-mono text-sm text-text">bun run worker:catalog</pre>
+                <p class="mt-1 text-xs text-muted">
+                  Fetches the full instrument list from Paytm and writes
+                  <code class="rounded bg-surface px-1 font-mono text-text">data/instruments.snapshot.json</code>.
+                  Run this once on first setup and periodically to keep the catalog current.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="rounded-xl border border-border bg-surface p-5">
+            <div class="flex items-start gap-3">
+              <span class="step-number">3</span>
+              <div class="min-w-0 flex-1">
+                <h3 class="font-semibold">Start the API server</h3>
+                <p class="text-sm text-muted">Launch the HTTP and WebSocket server:</p>
+                <pre class="mt-2 overflow-x-auto rounded-lg bg-base p-3 font-mono text-sm text-text">bun run dev</pre>
+                <p class="mt-1 text-xs text-muted">
+                  Starts on port 3000 by default. Verify with
+                  <code class="rounded bg-surface px-1 font-mono text-text">curl http://localhost:3000/ready</code>.
+                  Hot-reload is enabled for development.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="rounded-xl border border-border bg-surface p-5">
+            <div class="flex items-start gap-3">
+              <span class="step-number">4</span>
+              <div class="min-w-0 flex-1">
+                <h3 class="font-semibold">Start the ingest worker</h3>
+                <p class="text-sm text-muted">Run the Paytm upstream stream consumer in another terminal:</p>
+                <pre class="mt-2 overflow-x-auto rounded-lg bg-base p-3 font-mono text-sm text-text">bun run worker:ingest</pre>
+                <p class="mt-1 text-xs text-muted">
+                  This is a singleton — it owns the upstream WebSocket connection to
+                  Paytm, subscribes to requested symbols, and publishes quotes to
+                  Redis pub/sub. Only one instance should run.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Paytm login -->
+      <section id="paytm-login" class="mt-12">
+        <h2 class="text-xl font-bold">Paytm login flow</h2>
+        <p class="mt-3 leading-relaxed text-muted">
+          The login flow is entirely CLI-based. No browser endpoint is involved.
+          You need valid Paytm SmartConnect API credentials configured in your
+          <code class="rounded bg-surface px-1.5 py-0.5 font-mono text-text">.env</code>.
+        </p>
+
+        <div class="mt-6 space-y-4">
+          <div class="rounded-xl border border-border bg-surface p-5">
+            <h3 class="font-semibold">1. Generate a login URL</h3>
+            <pre class="mt-2 overflow-x-auto rounded-lg bg-base p-3 font-mono text-sm text-text">bun run paytm:login-url</pre>
+            <p class="mt-2 text-sm text-muted">
+              Prints a Paytm SmartConnect login URL. Open this URL in a browser
+              where your Paytm account is logged in. Paytm will redirect to your
+              configured callback URL with a <code class="rounded bg-base px-1 font-mono text-text">requestToken</code>
+              query parameter.
+            </p>
+          </div>
+
+          <div class="rounded-xl border border-border bg-surface p-5">
+            <h3 class="font-semibold">2. Exchange the request token</h3>
+            <p class="text-sm text-muted">
+              After Paytm redirects, extract the <code class="rounded bg-base px-1 font-mono text-text">requestToken</code>
+              value from the redirect URL and pass it to the exchange script:
+            </p>
+            <pre class="mt-2 overflow-x-auto rounded-lg bg-base p-3 font-mono text-sm text-text">bun run paytm:exchange-token -- &lt;requestToken&gt;</pre>
+            <p class="mt-2 text-sm text-muted">
+              Exchanges the request token for a persistent access token. The session
+              is saved to <code class="rounded bg-base px-1 font-mono text-text">data/paytm-session.json</code>.
+              This file must persist across restarts so the ingest worker can
+              re-establish the upstream connection.
+            </p>
+          </div>
+
+          <div class="rounded-xl border border-border bg-surface p-5">
+            <h3 class="font-semibold">3. Verify the session</h3>
+            <pre class="mt-2 overflow-x-auto rounded-lg bg-base p-3 font-mono text-sm text-text">bun run paytm:session</pre>
+            <p class="mt-2 text-sm text-muted">
+              Inspects the stored session state: access token validity, expiry
+              timestamp, and associated metadata. Run this to confirm login
+              succeeded before starting the ingest worker.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Verification -->
+      <section id="verification" class="mt-12">
+        <h2 class="text-xl font-bold">Provider data verification</h2>
+        <p class="mt-3 leading-relaxed text-muted">
+          Before wiring the frontend, verify that the full pipeline works
+          end-to-end — from Paytm through the ingest worker to the API.
+        </p>
+
+        <div class="mt-5 space-y-4">
+          <div class="rounded-xl border border-border bg-surface p-5">
+            <h3 class="font-semibold">Live market data check</h3>
+            <pre class="mt-2 overflow-x-auto rounded-lg bg-base p-3 font-mono text-sm text-text">bun run verify:paytm -- RELIANCE</pre>
+            <p class="mt-2 text-sm text-muted">
+              Uses the stored Paytm session, resolves the instrument from the
+              local catalog, and pulls a live market data response directly from
+              Paytm's API. Prints the raw response for inspection. If this works,
+              the ingest worker will also function correctly.
+            </p>
+          </div>
+
+          <div class="rounded-xl border border-border bg-surface p-5">
+            <h3 class="font-semibold">API smoke test</h3>
+            <p class="text-sm text-muted">Run these curl commands back-to-back:</p>
+            <pre class="mt-2 overflow-x-auto rounded-lg bg-base p-3 font-mono text-sm text-text">curl http://localhost:3000/ready
+curl "http://localhost:3000/v1/market/instruments/search?q=RELIANCE&limit=1"
+curl "http://localhost:3000/v1/market/quotes?ids=RELIANCE&mode=QUOTE"</pre>
+            <p class="mt-2 text-sm text-muted">
+              Expected results:
+            </p>
+            <ul class="mt-1 space-y-1 text-sm text-muted">
+              <li>— <code class="rounded bg-base px-1 font-mono text-text">/ready</code> returns 200 with <code class="rounded bg-base px-1 font-mono text-text">"ready": true</code></li>
+              <li>— <code class="rounded bg-base px-1 font-mono text-text">/search</code> returns 200 with matching instruments</li>
+              <li>— <code class="rounded bg-base px-1 font-mono text-text">/quotes</code> returns 200 with quote data (or cached data)</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- Testing -->
+      <section id="testing" class="mt-12">
+        <h2 class="text-xl font-bold">Testing</h2>
+        <p class="mt-3 leading-relaxed text-muted">
+          The test suite covers market data parsing, catalog lookup, WebSocket
+          fanout, the readiness contract, and confirms auth endpoints are not
+          exposed. Run it after any code change.
+        </p>
+        <pre class="mt-4 overflow-x-auto rounded-xl border border-border bg-base p-4 font-mono text-sm text-text">bun test tests</pre>
+
+        <div class="mt-5 grid gap-3 sm:grid-cols-2">
+          <div class="rounded-xl border border-border bg-surface p-4">
+            <h3 class="font-semibold text-sm">Market parsing</h3>
+            <p class="text-xs text-muted mt-1">Validates quote and trade parsing from Paytm's wire format. Covers malformed payloads.</p>
+          </div>
+          <div class="rounded-xl border border-border bg-surface p-4">
+            <h3 class="font-semibold text-sm">Instrument resolution</h3>
+            <p class="text-xs text-muted mt-1">Tests catalog lookup by symbol, security ID, and instrument key. Edge cases for missing entries.</p>
+          </div>
+          <div class="rounded-xl border border-border bg-surface p-4">
+            <h3 class="font-semibold text-sm">WebSocket protocol</h3>
+            <p class="text-xs text-muted mt-1">Subscribe and quote event flow. Confirms fanout reaches connected clients.</p>
+          </div>
+          <div class="rounded-xl border border-border bg-surface p-4">
+            <h3 class="font-semibold text-sm">Readiness & auth</h3>
+            <p class="text-xs text-muted mt-1">/ready returns 503 when deps missing. Auth routes return 404.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Troubleshooting -->
+      <section id="troubleshooting" class="mt-12">
+        <h2 class="text-xl font-bold">Troubleshooting</h2>
+        <div class="mt-5 space-y-3">
+          <details class="group rounded-xl border border-border bg-surface">
+            <summary class="cursor-pointer px-5 py-4 font-semibold text-sm group-open:border-b group-open:border-border">Redis connection refused</summary>
+            <div class="px-5 pb-4 pt-3 text-sm text-muted">
+              <p>Ensure Docker is running and Redis is started:</p>
+              <pre class="mt-2 rounded-lg bg-base p-3 font-mono text-xs text-text">docker compose -f deploy/docker-compose.yml up redis</pre>
+              <p class="mt-2">Check if Redis is listening on port 6379.</p>
+            </div>
+          </details>
+          <details class="group rounded-xl border border-border bg-surface">
+            <summary class="cursor-pointer px-5 py-4 font-semibold text-sm group-open:border-b group-open:border-border">Paytm session expired</summary>
+            <div class="px-5 pb-4 pt-3 text-sm text-muted">
+              <p>Re-run the login flow:</p>
+              <pre class="mt-2 rounded-lg bg-base p-3 font-mono text-xs text-text">bun run paytm:login-url
+# open URL, copy requestToken
+bun run paytm:exchange-token -- &lt;requestToken&gt;
+bun run paytm:session</pre>
+            </div>
+          </details>
+          <details class="group rounded-xl border border-border bg-surface">
+            <summary class="cursor-pointer px-5 py-4 font-semibold text-sm group-open:border-b group-open:border-border">Catalog not found</summary>
+            <div class="px-5 pb-4 pt-3 text-sm text-muted">
+              <p>The catalog snapshot file is missing. Run:</p>
+              <pre class="mt-2 rounded-lg bg-base p-3 font-mono text-xs text-text">bun run worker:catalog</pre>
+              <p class="mt-2">This writes <code class="rounded bg-surface px-1 font-mono text-text">data/instruments.snapshot.json</code>.</p>
+            </div>
+          </details>
+          <details class="group rounded-xl border border-border bg-surface">
+            <summary class="cursor-pointer px-5 py-4 font-semibold text-sm group-open:border-b group-open:border-border">WebSocket connects but no quotes arrive</summary>
+            <div class="px-5 pb-4 pt-3 text-sm text-muted">
+              <p>Verify the ingest worker is running and the Paytm session is valid. Check worker logs for subscription errors. Run the verification script:</p>
+              <pre class="mt-2 rounded-lg bg-base p-3 font-mono text-xs text-text">bun run verify:paytm -- RELIANCE</pre>
+            </div>
+          </details>
+        </div>
+      </section>
+    </div>
+  </div>
+</body>
+</html>

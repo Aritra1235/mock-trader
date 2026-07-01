@@ -29,6 +29,7 @@ yarn-error.log*
 .env.development.local
 .env.test.local
 .env.production.local
+.env
 
 # vercel
 .vercel
@@ -40,3 +41,8 @@ yarn-error.log*
 **/*.log
 package-lock.json
 **/*.bun
+./.env
+
+# Paytm session tokens (generated after login)
+/data/paytm-session.json
+/data/instruments.snapshot.json
