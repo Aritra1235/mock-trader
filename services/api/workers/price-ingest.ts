@@ -16,7 +16,7 @@ type ControlMessage = {
 };
 
 const env = loadEnv();
-const redis = createClient({ url: env.redisUrl, database: env.redisDatabase });
+const redis = createClient({ url: env.redis.url, database: env.redis.database });
 const subscriber = redis.duplicate();
 
 redis.on("error", (error) => console.error("Price worker redis error", error));
@@ -27,13 +27,13 @@ subscriber.on("error", (error) =>
 await redis.connect();
 await subscriber.connect();
 
-const session = await loadSession(env.sessionPath);
+const session = await loadSession(env.paths.session);
 if (!session?.public_access_token) {
   throw new Error("Paytm public access token is required before starting price ingest");
 }
 
 const live = new LivePriceWebSocket();
-live.setReconnectConfig(true, env.reconnectAttempts);
+live.setReconnectConfig(true, env.market.reconnectAttempts);
 
 const active = new Map<string, SubscriptionPreference>();
 const candles = new Map<string, CandleRecord>();
@@ -67,7 +67,7 @@ live.setOnMessageListener((ticks) => {
   }
 });
 
-await subscriber.subscribe(env.priceControlChannel, async (message) => {
+await subscriber.subscribe(env.market.redis.controlChannel, async (message) => {
   const control = JSON.parse(message) as ControlMessage;
   if (!control.subscription) {
     return;
@@ -165,14 +165,14 @@ function handleTick(raw: Record<string, unknown>) {
       candles.set(preference.instrumentKey, candle);
       void redis
         .multi()
-        .zAdd(`${env.candlePrefix}:${preference.instrumentKey}`, {
+        .zAdd(`${env.market.redis.candlePrefix}:${preference.instrumentKey}`, {
           score: candle.bucketStart,
           value: JSON.stringify(candle),
         })
         .zRemRangeByScore(
-          `${env.candlePrefix}:${preference.instrumentKey}`,
+          `${env.market.redis.candlePrefix}:${preference.instrumentKey}`,
           0,
-          candle.bucketStart - env.candleRetentionMs
+          candle.bucketStart - env.market.candleRetentionMs
         )
         .exec();
     }
@@ -186,8 +186,11 @@ function handleTick(raw: Record<string, unknown>) {
 
     void redis
       .multi()
-      .set(`${env.latestQuotePrefix}:${preference.instrumentKey}`, JSON.stringify(quote))
-      .publish(env.priceEventsChannel, JSON.stringify(event))
+      .set(
+        `${env.market.redis.latestQuotePrefix}:${preference.instrumentKey}`,
+        JSON.stringify(quote)
+      )
+      .publish(env.market.redis.eventsChannel, JSON.stringify(event))
       .exec();
   }
 }

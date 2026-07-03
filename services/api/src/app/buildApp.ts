@@ -32,14 +32,14 @@ export function buildApp(deps: AppDependencies) {
     )
 
     .get("/", async () => ({
-      service: deps.env.serviceName,
+      service: deps.env.service.name,
       status: "ok",
       docs: "/docs/index.html",
-      websocket: deps.env.priceWsPath,
+      websocket: deps.env.websocket.path,
     }))
     .get("/health", async () => ({
       status: "ok",
-      service: deps.env.serviceName,
+      service: deps.env.service.name,
     }))
     .get("/ready", async ({ set }) => {
       const [sessionStatus, redisOk, leasesOk] = await Promise.all([
@@ -65,17 +65,17 @@ export function buildApp(deps: AppDependencies) {
       return {
         ready,
         checks,
-        service: deps.env.serviceName,
+        service: deps.env.service.name,
         catalogCount,
         catalogSyncedAt: deps.catalog.getLastSyncedAt(),
-        websocketPath: deps.env.priceWsPath,
+        websocketPath: deps.env.websocket.path,
       };
     })
     .get("/v1/market/stats", async () => ({
       catalogCount: deps.catalog.count(),
       catalogSyncedAt: deps.catalog.getLastSyncedAt(),
-      upstreamMode: deps.env.upstreamMode,
-      websocketPath: deps.env.priceWsPath,
+      upstreamMode: deps.env.market.upstreamMode,
+      websocketPath: deps.env.websocket.path,
     }))
     .get("/v1/market/instruments/search", async ({ query }) =>
       deps.catalog.search({
@@ -113,7 +113,7 @@ export function buildApp(deps: AppDependencies) {
       const mode =
         query.mode === "LTP" || query.mode === "QUOTE" || query.mode === "FULL"
           ? query.mode
-          : deps.env.upstreamMode;
+          : deps.env.market.upstreamMode;
 
       return {
         data: await deps.marketData.getQuotes(ids, mode),
@@ -178,7 +178,7 @@ export function buildApp(deps: AppDependencies) {
     .get("/docs/", ({ redirect }) => redirect("/docs/index.html"))
     .get("/docs/index.html", async ({ set }) => {
       set.headers["content-type"] = "text/html; charset=utf-8";
-      return readDocsFile(deps.env.docsDir, "index.html");
+      return readDocsFile(deps.env.paths.docs, "index.html");
     })
     .get("/docs/:name", async ({ params, set }) => {
       const mapping: Record<string, string> = {
@@ -196,7 +196,7 @@ export function buildApp(deps: AppDependencies) {
         return "Not found";
       }
       set.headers["content-type"] = "text/html; charset=utf-8";
-      return readDocsFile(deps.env.docsDir, fileName);
+      return readDocsFile(deps.env.paths.docs, fileName);
     })
     .get("/docs/md/:name", async ({ params, set }) => {
       const mapping: Record<string, string> = {
@@ -213,9 +213,9 @@ export function buildApp(deps: AppDependencies) {
         return "Not found";
       }
       set.headers["content-type"] = "text/markdown; charset=utf-8";
-      return readDocsFile(deps.env.docsDir, fileName);
+      return readDocsFile(deps.env.paths.docs, fileName);
     })
-    .ws(deps.env.priceWsPath, {
+    .ws(deps.env.websocket.path, {
       open: (ws) => {
         deps.gateway.open(ws);
       },

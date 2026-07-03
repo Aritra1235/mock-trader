@@ -6,9 +6,13 @@ import { PaytmSessionService } from "../src/services/paytmSessionService";
 
 const symbol = process.env.VERIFY_SYMBOL ?? Bun.argv[2] ?? "RELIANCE";
 const env = loadEnv();
-const client = new PaytmHttpClient(env.paytmApiKey, env.paytmApiSecret);
-const session = new PaytmSessionService(client, env.sessionPath);
-const catalog = new CatalogService(client, env.catalogSnapshotPath, env.catalogFiles);
+const client = new PaytmHttpClient(env.paytm.apiKey, env.paytm.apiSecret);
+const session = new PaytmSessionService(client, env.paths.session);
+const catalog = new CatalogService(
+  client,
+  env.paths.catalogSnapshot,
+  env.catalog.files
+);
 
 await catalog.loadSnapshot();
 
@@ -24,7 +28,7 @@ if (!instrument) {
 const token = await session.requireReadableToken();
 const preference = {
   exchangeType: instrument.exchange,
-  modeType: env.upstreamMode,
+  modeType: env.market.upstreamMode,
   scripType: instrument.scripType,
   scripId: instrument.securityId,
 };
@@ -34,10 +38,12 @@ const restPreference = preferenceToRestPreference({
   securityId: instrument.securityId,
   exchangeType: instrument.exchange,
   scripType: instrument.scripType,
-  modeType: env.upstreamMode,
+  modeType: env.market.upstreamMode,
 });
 
-const quote = await client.fetchLiveMarketData(token, env.upstreamMode, [restPreference]);
+const quote = await client.fetchLiveMarketData(token, env.market.upstreamMode, [
+  restPreference,
+]);
 
 console.log(
   JSON.stringify(

@@ -4,8 +4,8 @@ import { PaytmSessionService } from "../services/paytmSessionService";
 
 export function createOperatorAuthServices() {
   const env = loadEnv();
-  const client = new PaytmHttpClient(env.paytmApiKey, env.paytmApiSecret);
-  const session = new PaytmSessionService(client, env.sessionPath);
+  const client = new PaytmHttpClient(env.paytm.apiKey, env.paytm.apiSecret);
+  const session = new PaytmSessionService(client, env.paths.session);
 
   return {
     env,
