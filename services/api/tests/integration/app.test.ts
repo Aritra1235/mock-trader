@@ -20,6 +20,7 @@ test("app exposes health, instrument search, and quotes", async () => {
     },
     db: {
       url: "postgres://postgres:postgres@localhost:5432/mock_trader",
+      poolMax: 10,
     },
     paths: {
       docs: join(import.meta.dir, "..", "..", "docs"),

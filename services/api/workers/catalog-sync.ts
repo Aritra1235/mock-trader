@@ -1,8 +1,8 @@
-import { loadEnv } from "../src/config/env";
+import { loadCatalogWorkerEnv } from "../src/config/env";
 import { PaytmHttpClient } from "../src/providers/paytmHttpClient";
 import { CatalogService } from "../src/services/catalogService";
 
-const env = loadEnv();
+const env = loadCatalogWorkerEnv();
 const client = new PaytmHttpClient(env.paytm.apiKey, env.paytm.apiSecret);
 const catalog = new CatalogService(
   client,

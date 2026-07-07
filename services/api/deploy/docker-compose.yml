@@ -1,8 +1,19 @@
 services:
   redis:
-    image: redis:7-alpine
+    image: redis:8.2.0-alpine
     ports:
       - "6379:6379"
+
+  postgres:
+    image: postgres:17.5
+    environment:
+      POSTGRES_DB: mock_trader
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
 
   api:
     build:
@@ -11,9 +22,10 @@ services:
     env_file:
       - ../.env
     ports:
-      - "5000:5000"
+      - "3000:3000"
     depends_on:
       - redis
+      - postgres
     volumes:
       - ../data:/app/services/api/data
 
@@ -36,8 +48,9 @@ services:
     env_file:
       - ../.env
     command: ["bun", "run", "worker:catalog"]
-    depends_on:
-      - redis
     profiles: ["ops"]
     volumes:
       - ../data:/app/services/api/data
+
+volumes:
+  postgres-data:

@@ -1,7 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import { buildApp } from "../app/buildApp";
-import { loadEnv } from "../config/env";
+import { loadRuntimeEnv } from "../config/env";
 import { PaytmHttpClient } from "../providers/paytmHttpClient";
 import { RedisMarketDataStore } from "../repositories/marketDataStore";
 import { RedisSubscriptionLeaseRepository } from "../repositories/subscriptionLeaseRepository";
@@ -11,7 +11,7 @@ import { PaytmSessionService } from "../services/paytmSessionService";
 import { MarketGateway } from "../ws/marketGateway";
 
 export async function bootstrapRuntime() {
-  const env = loadEnv();
+  const env = loadRuntimeEnv();
   await mkdir(dirname(env.paths.session), { recursive: true });
   await mkdir(dirname(env.paths.catalogSnapshot), { recursive: true });
 

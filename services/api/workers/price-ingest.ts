@@ -1,6 +1,6 @@
 import { createClient } from "redis";
 import { LivePriceWebSocket } from "../../../libraries/tsPMClient/src/livePriceWebSocket";
-import { loadEnv } from "../src/config/env";
+import { loadIngestWorkerEnv } from "../src/config/env";
 import {
   buildSubscriptionKey,
   createOrMergeCandle,
@@ -15,7 +15,7 @@ type ControlMessage = {
   subscription?: SubscriptionPreference;
 };
 
-const env = loadEnv();
+const env = loadIngestWorkerEnv();
 const redis = createClient({ url: env.redis.url, database: env.redis.database });
 const subscriber = redis.duplicate();
 
