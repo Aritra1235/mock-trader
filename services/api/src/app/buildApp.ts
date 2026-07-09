@@ -12,6 +12,8 @@ import type { CatalogService } from "../services/catalogService";
 import type { MarketDataService } from "../services/marketDataService";
 import type { PaytmSessionService } from "../services/paytmSessionService";
 import type { MarketGateway } from "../ws/marketGateway";
+import { apiVersion } from "../config/const";
+
 
 export interface AppDependencies {
   env: AppEnv;
@@ -42,7 +44,7 @@ export function buildApp(deps: AppDependencies) {
       }),
     )
 
-    .all("/api/auth/*", betterAuthView)
+    .all(`/${apiVersion}/api/auth/*`, betterAuthView)
 
     .get("/", async () => ({
       service: deps.env.service.name,
@@ -84,13 +86,13 @@ export function buildApp(deps: AppDependencies) {
         websocketPath: deps.env.websocket.path,
       };
     })
-    .get("/v1/market/stats", async () => ({
+    .get(`/${apiVersion}/market/stats`, async () => ({
       catalogCount: deps.catalog.count(),
       catalogSyncedAt: deps.catalog.getLastSyncedAt(),
       upstreamMode: deps.env.market.upstreamMode,
       websocketPath: deps.env.websocket.path,
     }))
-    .get("/v1/market/instruments/search", async ({ query }) =>
+    .get(`/${apiVersion}/market/instruments/search`, async ({ query }) =>
       deps.catalog.search({
         q: typeof query.q === "string" ? query.q : undefined,
         limit:
@@ -101,7 +103,7 @@ export function buildApp(deps: AppDependencies) {
           typeof query.scripType === "string" ? query.scripType : undefined,
       }),
     )
-    .get("/v1/market/instruments/:id", async ({ params, set }) => {
+    .get(`/${apiVersion}/market/instruments/:id`, async ({ params, set }) => {
       const instrument = deps.catalog.resolve(params.id);
       if (!instrument) {
         set.status = 404;
@@ -109,7 +111,7 @@ export function buildApp(deps: AppDependencies) {
       }
       return instrument;
     })
-    .get("/v1/market/quotes", async ({ query, set }) => {
+    .get(`/${apiVersion}/market/quotes`, async ({ query, set }) => {
       const ids =
         typeof query.ids === "string"
           ? query.ids
@@ -132,7 +134,7 @@ export function buildApp(deps: AppDependencies) {
         data: await deps.marketData.getQuotes(ids, mode),
       };
     })
-    .get("/v1/market/candles/:id", async ({ params, query, set }) => {
+    .get(`/${apiVersion}/market/candles/:id`, async ({ params, query, set }) => {
       const fromMs =
         typeof query.from === "string"
           ? Date.parse(query.from)
@@ -165,7 +167,7 @@ export function buildApp(deps: AppDependencies) {
         candles: result.candles,
       };
     })
-    .get("/v1/market/provider/chart", async ({ query, set }) => {
+    .get(`/${apiVersion}/market/provider/chart`, async ({ query, set }) => {
       const params = Object.fromEntries(
         Object.entries(query).flatMap(([key, value]) =>
           typeof value === "string" ? [[key, value]] : [],
