@@ -15,10 +15,16 @@ From `services/api`:
 docker compose -f deploy/docker-compose.yml up --build
 ```
 
-For local development, you can start Redis only:
+For local development, you can start the shared dependencies only:
 
 ```bash
-docker compose -f deploy/docker-compose.yml up redis
+docker compose -f deploy/docker-compose.yml up redis postgres
+```
+
+Then run database migrations before starting the API:
+
+```bash
+bun run db:migrate
 ```
 
 ## Scaling
@@ -26,6 +32,7 @@ docker compose -f deploy/docker-compose.yml up redis
 - Scale `api` horizontally.
 - Keep `price-ingest` to one replica unless you explicitly shard subscriptions.
 - Persist `data/` so `paytm-session.json` and `instruments.snapshot.json` survive restarts.
+- Persist the Postgres volume so generated tables and migration state survive restarts.
 - Put the public load balancer in front of `api` only.
 
 ## Readiness gate
@@ -47,4 +54,5 @@ bun run paytm:login-url
 bun run paytm:exchange-token -- <requestToken>
 bun run worker:catalog
 bun run verify:paytm -- RELIANCE
+bun run db:migrate
 ```

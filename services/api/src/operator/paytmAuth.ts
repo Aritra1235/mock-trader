@@ -1,11 +1,11 @@
-import { loadEnv } from "../config/env";
+import { loadOperatorEnv } from "../config/env";
 import { PaytmHttpClient } from "../providers/paytmHttpClient";
 import { PaytmSessionService } from "../services/paytmSessionService";
 
 export function createOperatorAuthServices() {
-  const env = loadEnv();
-  const client = new PaytmHttpClient(env.paytmApiKey, env.paytmApiSecret);
-  const session = new PaytmSessionService(client, env.sessionPath);
+  const env = loadOperatorEnv();
+  const client = new PaytmHttpClient(env.paytm.apiKey, env.paytm.apiSecret);
+  const session = new PaytmSessionService(client, env.paths.session);
 
   return {
     env,

@@ -188,14 +188,18 @@
           </div>
 
           <div class="rounded-xl border border-border bg-surface p-5">
-            <h3 class="font-semibold">Local dev (Redis only)</h3>
-            <p class="text-sm text-muted">Start only Redis:</p>
-            <pre class="mt-2 overflow-x-auto rounded-lg bg-base p-3 font-mono text-sm text-text">docker compose -f deploy/docker-compose.yml up redis</pre>
+            <h3 class="font-semibold">Local dev dependencies</h3>
+            <p class="text-sm text-muted">Start Redis and Postgres:</p>
+            <pre class="mt-2 overflow-x-auto rounded-lg bg-base p-3 font-mono text-sm text-text">docker compose -f deploy/docker-compose.yml up redis postgres</pre>
             <p class="mt-2 text-sm text-muted">
               Use this when running the API and worker via
               <code class="rounded bg-base px-1 font-mono text-text">bun run dev</code> and
               <code class="rounded bg-base px-1 font-mono text-text">bun run worker:ingest</code>
               outside containers.
+            </p>
+            <p class="mt-2 text-sm text-muted">
+              Run <code class="rounded bg-base px-1 font-mono text-text">bun run db:migrate</code>
+              before starting the API so Postgres matches the checked-in Drizzle schema.
             </p>
           </div>
         </div>
@@ -208,10 +212,15 @@
     ports: ["6379:6379"]
     volumes: ["redis-data:/data"]
 
+  postgres:
+    image: postgres:16-alpine
+    ports: ["5432:5432"]
+    volumes: ["postgres-data:/var/lib/postgresql/data"]
+
   api:
     build: ..
     ports: ["3000:3000"]
-    depends_on: [redis]
+    depends_on: [redis, postgres]
     env_file: ../.env
     volumes: [../data:/app/data]
 
@@ -223,7 +232,6 @@
 
   catalog-sync:
     build: ..
-    depends_on: [redis]
     env_file: ../.env
     volumes: [../data:/app/data]</pre>
         </div>
@@ -243,10 +251,11 @@
           <thead><tr class="text-muted text-xs"><th class="px-3 py-2 text-left font-semibold">Variable</th><th class="px-3 py-2 text-left font-semibold">Required</th><th class="px-3 py-2 text-left font-semibold">Description</th></tr></thead>
           <tbody class="divide-y divide-border">
             <tr><td class="px-3 py-2 font-mono text-xs">PAYTM_API_KEY</td><td class="px-3 py-2 text-xs text-green">yes</td><td class="px-3 py-2 text-xs text-muted">Paytm SmartConnect API key.</td></tr>
-            <tr><td class="px-3 py-2 font-mono text-xs">PAYTM_API_SECRET</td><td class="px-3 py-2 text-xs text-green">yes</td><td class="px-3 py-2 text-xs text-muted">Paytm SmartConnect API secret.</td></tr>
-            <tr><td class="px-3 py-2 font-mono text-xs">PAYTM_CALLBACK_URL</td><td class="px-3 py-2 text-xs text-green">yes</td><td class="px-3 py-2 text-xs text-muted">OAuth callback URL registered with Paytm.</td></tr>
-            <tr><td class="px-3 py-2 font-mono text-xs">REDIS_HOST</td><td class="px-3 py-2 text-xs text-muted">no</td><td class="px-3 py-2 text-xs text-muted">Redis hostname (default: localhost).</td></tr>
-            <tr><td class="px-3 py-2 font-mono text-xs">REDIS_PORT</td><td class="px-3 py-2 text-xs text-muted">no</td><td class="px-3 py-2 text-xs text-muted">Redis port (default: 6379).</td></tr>
+            <tr><td class="px-3 py-2 font-mono text-xs">PAYTM_SECRET_KEY</td><td class="px-3 py-2 text-xs text-green">yes</td><td class="px-3 py-2 text-xs text-muted">Paytm SmartConnect API secret.</td></tr>
+            <tr><td class="px-3 py-2 font-mono text-xs">REDIS_URL</td><td class="px-3 py-2 text-xs text-green">yes</td><td class="px-3 py-2 text-xs text-muted">Redis connection URL.</td></tr>
+            <tr><td class="px-3 py-2 font-mono text-xs">REDIS_DATABASE</td><td class="px-3 py-2 text-xs text-green">yes</td><td class="px-3 py-2 text-xs text-muted">Redis database index for the market backplane.</td></tr>
+            <tr><td class="px-3 py-2 font-mono text-xs">DATABASE_URL</td><td class="px-3 py-2 text-xs text-green">yes</td><td class="px-3 py-2 text-xs text-muted">Postgres connection URL used by Drizzle.</td></tr>
+            <tr><td class="px-3 py-2 font-mono text-xs">DATABASE_POOL_MAX</td><td class="px-3 py-2 text-xs text-muted">no</td><td class="px-3 py-2 text-xs text-muted">Maximum Postgres pool size (default: 10).</td></tr>
             <tr><td class="px-3 py-2 font-mono text-xs">PORT</td><td class="px-3 py-2 text-xs text-muted">no</td><td class="px-3 py-2 text-xs text-muted">API server port (default: 3000).</td></tr>
           </tbody>
         </table>
@@ -298,11 +307,12 @@
           <h3 class="font-semibold">Data persistence</h3>
           <p class="mt-1 text-sm text-muted">
             Mount a volume or bind-mount for the <code class="rounded bg-base px-1 font-mono text-text">data/</code>
-            directory to preserve these files across restarts:
+            directory and persist the Postgres data volume to preserve state across restarts:
           </p>
           <ul class="mt-2 space-y-1 text-sm text-muted">
             <li>— <code class="rounded bg-base px-1 font-mono text-text">paytm-session.json</code> — avoids re-authentication after deploy</li>
             <li>— <code class="rounded bg-base px-1 font-mono text-text">instruments.snapshot.json</code> — avoids re-syncing the full catalog</li>
+            <li>— <code class="rounded bg-base px-1 font-mono text-text">postgres-data</code> — preserves Drizzle-managed tables and migration history</li>
           </ul>
           <p class="mt-2 text-sm text-muted">
             Without persistence, every container restart requires re-login
@@ -415,6 +425,10 @@
           <div class="rounded-xl border border-border bg-surface p-4">
             <span class="text-xs font-semibold uppercase tracking-wider text-muted">Sync catalog</span>
             <pre class="mt-2 overflow-x-auto rounded-lg bg-base p-3 font-mono text-sm text-text">bun run worker:catalog</pre>
+          </div>
+          <div class="rounded-xl border border-border bg-surface p-4">
+            <span class="text-xs font-semibold uppercase tracking-wider text-muted">Apply DB migrations</span>
+            <pre class="mt-2 overflow-x-auto rounded-lg bg-base p-3 font-mono text-sm text-text">bun run db:migrate</pre>
           </div>
         </div>
       </section>

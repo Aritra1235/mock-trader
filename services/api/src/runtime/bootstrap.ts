@@ -1,7 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import { buildApp } from "../app/buildApp";
-import { loadEnv } from "../config/env";
+import { loadRuntimeEnv } from "../config/env";
 import { PaytmHttpClient } from "../providers/paytmHttpClient";
 import { RedisMarketDataStore } from "../repositories/marketDataStore";
 import { RedisSubscriptionLeaseRepository } from "../repositories/subscriptionLeaseRepository";
@@ -11,16 +11,22 @@ import { PaytmSessionService } from "../services/paytmSessionService";
 import { MarketGateway } from "../ws/marketGateway";
 
 export async function bootstrapRuntime() {
-  const env = loadEnv();
-  await mkdir(dirname(env.sessionPath), { recursive: true });
-  await mkdir(dirname(env.catalogSnapshotPath), { recursive: true });
+  const env = loadRuntimeEnv();
+  await mkdir(dirname(env.paths.session), { recursive: true });
+  await mkdir(dirname(env.paths.catalogSnapshot), { recursive: true });
 
-  const paytmClient = new PaytmHttpClient(env.paytmApiKey, env.paytmApiSecret);
-  const sessionService = new PaytmSessionService(paytmClient, env.sessionPath);
+  const paytmClient = new PaytmHttpClient(
+    env.paytm.apiKey,
+    env.paytm.apiSecret,
+  );
+  const sessionService = new PaytmSessionService(
+    paytmClient,
+    env.paths.session,
+  );
   const catalog = new CatalogService(
     paytmClient,
-    env.catalogSnapshotPath,
-    env.catalogFiles
+    env.paths.catalogSnapshot,
+    env.catalog.files,
   );
 
   const loadedSnapshot = await catalog.loadSnapshot();
@@ -33,20 +39,20 @@ export async function bootstrapRuntime() {
   }
 
   const store = new RedisMarketDataStore({
-    url: env.redisUrl,
-    database: env.redisDatabase,
-    latestQuotePrefix: env.latestQuotePrefix,
-    candlePrefix: env.candlePrefix,
-    quoteEventsChannel: env.priceEventsChannel,
-    candleRetentionMs: env.candleRetentionMs,
+    url: env.redis.url,
+    database: env.redis.database,
+    latestQuotePrefix: env.market.redis.latestQuotePrefix,
+    candlePrefix: env.market.redis.candlePrefix,
+    quoteEventsChannel: env.market.redis.eventsChannel,
+    candleRetentionMs: env.market.candleRetentionMs,
   });
   await store.connect();
 
   const leases = new RedisSubscriptionLeaseRepository({
-    url: env.redisUrl,
-    database: env.redisDatabase,
-    leasePrefix: env.subscriptionLeasePrefix,
-    controlChannel: env.priceControlChannel,
+    url: env.redis.url,
+    database: env.redis.database,
+    leasePrefix: env.subscriptions.leasePrefix,
+    controlChannel: env.market.redis.controlChannel,
   });
   await leases.connect();
 
@@ -55,7 +61,7 @@ export async function bootstrapRuntime() {
     paytmClient,
     sessionService,
     store,
-    env.quoteStaleMs
+    env.market.quoteStaleMs,
   );
 
   const gateway = new MarketGateway(
@@ -63,11 +69,11 @@ export async function bootstrapRuntime() {
     catalog,
     leases,
     store,
-    env.upstreamMode,
-    env.maxClientSubscriptions,
-    env.subscriptionLeaseMs,
-    env.subscriptionHeartbeatMs,
-    env.subscriptionSweepMs
+    env.market.upstreamMode,
+    env.subscriptions.maxClients,
+    env.subscriptions.leaseMs,
+    env.subscriptions.heartbeatMs,
+    env.subscriptions.sweepMs,
   );
   await gateway.start();
 
@@ -75,7 +81,7 @@ export async function bootstrapRuntime() {
     void catalog.syncFromProvider().catch((error) => {
       console.warn("Scheduled catalog sync failed", error);
     });
-  }, env.catalogRefreshMs);
+  }, env.catalog.refreshMs);
 
   return {
     env,

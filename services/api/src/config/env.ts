@@ -1,36 +1,34 @@
 import dotenv from "dotenv";
 import { join } from "node:path";
 import type { MarketMode } from "../types/market";
+import type {
+  ServiceConfig,
+  RedisConfig,
+  DBConfig,
+  PathsConfig,
+  CatalogConfig,
+  WebSocketConfig,
+  MarketConfig,
+  SubscriptionConfig,
+  PaytmConfig,
+  RuntimeEnv,
+  OperatorEnv,
+  IngestWorkerEnv,
+  CatalogWorkerEnv,
+} from "./interfaces";
 
 dotenv.config();
 
-export interface AppEnv {
-  serviceName: string;
-  port: number;
-  redisUrl: string;
-  redisDatabase: number;
-  docsDir: string;
-  dataDir: string;
-  sessionPath: string;
-  catalogSnapshotPath: string;
-  catalogFiles: string[];
-  catalogRefreshMs: number;
-  priceWsPath: string;
-  priceControlChannel: string;
-  priceEventsChannel: string;
-  latestQuotePrefix: string;
-  candlePrefix: string;
-  subscriptionLeasePrefix: string;
-  upstreamMode: MarketMode;
-  reconnectAttempts: number;
-  quoteStaleMs: number;
-  maxClientSubscriptions: number;
-  subscriptionLeaseMs: number;
-  subscriptionHeartbeatMs: number;
-  subscriptionSweepMs: number;
-  candleRetentionMs: number;
-  paytmApiKey: string | null;
-  paytmApiSecret: string | null;
+export type AppEnv = RuntimeEnv;
+
+function required(name: string): string {
+  const value = process.env[name];
+
+  if (!value || value.trim() === "") {
+    throw new Error(`${name} is required`);
+  }
+
+  return value;
 }
 
 function asPositiveInt(input: string | undefined, fallback: number) {
@@ -42,58 +40,168 @@ function asMode(input: string | undefined): MarketMode {
   if (input === "LTP" || input === "QUOTE" || input === "FULL") {
     return input;
   }
+
   return "QUOTE";
 }
 
-export function loadEnv(): AppEnv {
-  const dataDir = process.env.DATA_DIR ?? join(import.meta.dir, "..", "..", "data");
-  const port = asPositiveInt(process.env.PORT, 3000);
+function loadServiceConfig(): ServiceConfig {
+  return {
+    name: process.env.SERVICE_NAME ?? "mock-trader-api",
+    port: asPositiveInt(process.env.PORT, 3000),
+  };
+}
+
+function loadRedisConfig(): RedisConfig {
+  return {
+    url: required("REDIS_URL"),
+    database: asPositiveInt(required("REDIS_DATABASE"), 2),
+  };
+}
+
+function loadDbConfig(): DBConfig {
+  return {
+    url: required("DATABASE_URL"),
+    poolMax: asPositiveInt(process.env.DATABASE_POOL_MAX, 10),
+  };
+}
+
+function loadPathsConfig(): PathsConfig {
+  const dataDir =
+    process.env.DATA_DIR ?? join(import.meta.dir, "..", "..", "data");
 
   return {
-    serviceName: process.env.SERVICE_NAME ?? "mock-trader-api",
-    port,
-    redisUrl: process.env.REDIS_URL ?? "redis://localhost:6379",
-    redisDatabase: asPositiveInt(process.env.REDIS_DATABASE, 2),
-    docsDir: process.env.DOCS_DIR ?? join(import.meta.dir, "..", "..", "docs"),
-    dataDir,
-    sessionPath:
-      process.env.PAYTM_SESSION_PATH ?? join(dataDir, "paytm-session.json"),
-    catalogSnapshotPath:
+    docs: process.env.DOCS_DIR ?? join(import.meta.dir, "..", "..", "docs"),
+    data: dataDir,
+    session: process.env.PAYTM_SESSION_PATH ?? join(dataDir, "paytm-session.json"),
+    catalogSnapshot:
       process.env.CATALOG_SNAPSHOT_PATH ??
       join(dataDir, "instruments.snapshot.json"),
-    catalogFiles: (process.env.CATALOG_FILES ?? "security_master.csv")
+  };
+}
+
+function loadCatalogConfig(): CatalogConfig {
+  return {
+    files: (process.env.CATALOG_FILES ?? "security_master.csv")
       .split(",")
       .map((value) => value.trim())
       .filter(Boolean),
-    catalogRefreshMs:
+    refreshMs:
       asPositiveInt(process.env.CATALOG_REFRESH_MINUTES, 720) * 60 * 1000,
-    priceWsPath: process.env.PRICE_WS_PATH ?? "/ws/market",
-    priceControlChannel: process.env.PRICE_CONTROL_CHANNEL ?? "market:control",
-    priceEventsChannel: process.env.PRICE_EVENTS_CHANNEL ?? "market:events:quotes",
-    latestQuotePrefix: process.env.LATEST_QUOTE_PREFIX ?? "market:quote:latest",
-    candlePrefix: process.env.CANDLE_PREFIX ?? "market:candles:1m",
-    subscriptionLeasePrefix:
-      process.env.SUBSCRIPTION_LEASE_PREFIX ?? "market:subscription:leases",
+  };
+}
+
+function loadWebSocketConfig(): WebSocketConfig {
+  return {
+    path: process.env.PRICE_WS_PATH ?? "/ws/market",
+  };
+}
+
+function loadMarketConfig(): MarketConfig {
+  return {
     upstreamMode: asMode(process.env.UPSTREAM_PRICE_MODE),
-    reconnectAttempts: asPositiveInt(process.env.PRICE_WS_RECONNECT_ATTEMPTS, 10),
+    reconnectAttempts: asPositiveInt(
+      process.env.PRICE_WS_RECONNECT_ATTEMPTS,
+      10,
+    ),
     quoteStaleMs: asPositiveInt(process.env.QUOTE_STALE_MS, 15_000),
-    maxClientSubscriptions: asPositiveInt(process.env.MAX_PRICE_SUBSCRIPTIONS, 100),
-    subscriptionLeaseMs: asPositiveInt(process.env.SUBSCRIPTION_LEASE_MS, 45_000),
-    subscriptionHeartbeatMs: asPositiveInt(
-      process.env.SUBSCRIPTION_HEARTBEAT_MS,
-      15_000
-    ),
-    subscriptionSweepMs: asPositiveInt(
-      process.env.SUBSCRIPTION_SWEEP_MS,
-      20_000
-    ),
+    redis: {
+      controlChannel: process.env.PRICE_CONTROL_CHANNEL ?? "market:control",
+      eventsChannel:
+        process.env.PRICE_EVENTS_CHANNEL ?? "market:events:quotes",
+      latestQuotePrefix:
+        process.env.LATEST_QUOTE_PREFIX ?? "market:quote:latest",
+      candlePrefix: process.env.CANDLE_PREFIX ?? "market:candles:1m",
+    },
     candleRetentionMs:
       asPositiveInt(process.env.CANDLE_RETENTION_DAYS, 14) *
       24 *
       60 *
       60 *
       1000,
-    paytmApiKey: process.env.PAYTM_API_KEY ?? null,
-    paytmApiSecret: process.env.PAYTM_SECRET_KEY ?? null,
   };
 }
+
+function loadSubscriptionConfig(): SubscriptionConfig {
+  return {
+    maxClients: asPositiveInt(process.env.MAX_PRICE_SUBSCRIPTIONS, 100),
+    leasePrefix:
+      process.env.SUBSCRIPTION_LEASE_PREFIX ?? "market:subscription:leases",
+    leaseMs: asPositiveInt(process.env.SUBSCRIPTION_LEASE_MS, 45_000),
+    heartbeatMs: asPositiveInt(process.env.SUBSCRIPTION_HEARTBEAT_MS, 15_000),
+    sweepMs: asPositiveInt(process.env.SUBSCRIPTION_SWEEP_MS, 20_000),
+  };
+}
+
+function loadPaytmConfig(): PaytmConfig {
+  return {
+    apiKey: required("PAYTM_API_KEY"),
+    apiSecret: required("PAYTM_SECRET_KEY"),
+  };
+}
+
+export function loadRuntimeEnv(): RuntimeEnv {
+  return {
+    service: loadServiceConfig(),
+    redis: loadRedisConfig(),
+    db: loadDbConfig(),
+    paths: loadPathsConfig(),
+    catalog: loadCatalogConfig(),
+    websocket: loadWebSocketConfig(),
+    market: loadMarketConfig(),
+    subscriptions: loadSubscriptionConfig(),
+    paytm: loadPaytmConfig(),
+  };
+}
+
+export function loadOperatorEnv(): OperatorEnv {
+  const paths = loadPathsConfig();
+
+  return {
+    paths: {
+      data: paths.data,
+      session: paths.session,
+      catalogSnapshot: paths.catalogSnapshot,
+    },
+    catalog: loadCatalogConfig(),
+    market: {
+      upstreamMode: asMode(process.env.UPSTREAM_PRICE_MODE),
+    },
+    paytm: loadPaytmConfig(),
+  };
+}
+
+export function loadIngestWorkerEnv(): IngestWorkerEnv {
+  const paths = loadPathsConfig();
+  const market = loadMarketConfig();
+
+  return {
+    redis: loadRedisConfig(),
+    paths: {
+      session: paths.session,
+    },
+    market: {
+      upstreamMode: market.upstreamMode,
+      reconnectAttempts: market.reconnectAttempts,
+      candleRetentionMs: market.candleRetentionMs,
+      redis: market.redis,
+    },
+  };
+}
+
+export function loadCatalogWorkerEnv(): CatalogWorkerEnv {
+  const paths = loadPathsConfig();
+
+  return {
+    paths: {
+      catalogSnapshot: paths.catalogSnapshot,
+    },
+    catalog: loadCatalogConfig(),
+    paytm: loadPaytmConfig(),
+  };
+}
+
+export function loadDatabaseEnv(): DBConfig {
+  return loadDbConfig();
+}
+
+export const loadEnv = loadRuntimeEnv;

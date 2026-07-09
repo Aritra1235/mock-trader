@@ -6,10 +6,16 @@ Users interact with your site and your backend only. Paytm login, token exchange
 
 ## Local workflow
 
-Start Redis first:
+Start Redis and Postgres first:
 
 ```bash
-docker compose -f deploy/docker-compose.yml up redis
+docker compose -f deploy/docker-compose.yml up redis postgres
+```
+
+Apply database migrations:
+
+```bash
+bun run db:migrate
 ```
 
 Start the API:
@@ -30,6 +36,12 @@ Refresh the instrument catalog when needed:
 bun run worker:catalog
 ```
 
+Generate a new migration after editing `src/db/schema.ts`:
+
+```bash
+bun run db:generate
+```
+
 ## Operator Paytm login
 
 Generate a login URL:
@@ -37,6 +49,9 @@ Generate a login URL:
 ```bash
 bun run paytm:login-url
 ```
+
+This command only needs the Paytm credentials and local `data/` files. Redis
+and Postgres do not need to be running.
 
 After Paytm redirects you, copy the `requestToken` query value and exchange it:
 

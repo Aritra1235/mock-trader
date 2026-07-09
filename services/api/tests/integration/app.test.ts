@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { join } from "node:path";
 import { buildApp } from "../../src/app/buildApp";
-import { loadEnv } from "../../src/config/env";
+import type { AppEnv } from "../../src/config/env";
 import { PaytmHttpClient } from "../../src/providers/paytmHttpClient";
 import { MarketDataService } from "../../src/services/marketDataService";
 import { PaytmSessionService } from "../../src/services/paytmSessionService";
@@ -9,7 +9,56 @@ import { MarketGateway } from "../../src/ws/marketGateway";
 import { InMemoryLeases, InMemoryStore, makeCatalog } from "../testSupport";
 
 test("app exposes health, instrument search, and quotes", async () => {
-  const env = loadEnv();
+  const env: AppEnv = {
+    service: {
+      name: "mock-trader-api",
+      port: 3000,
+    },
+    redis: {
+      url: "redis://localhost:6379",
+      database: 2,
+    },
+    db: {
+      url: "postgres://postgres:postgres@localhost:5432/mock_trader",
+      poolMax: 10,
+    },
+    paths: {
+      docs: join(import.meta.dir, "..", "..", "docs"),
+      data: "/tmp/mock-trader-data",
+      session: "/tmp/mock-trader-session-app.json",
+      catalogSnapshot: "/tmp/mock-trader-catalog-app.json",
+    },
+    catalog: {
+      files: ["security_master.csv"],
+      refreshMs: 12 * 60 * 60 * 1000,
+    },
+    websocket: {
+      path: "/ws/market",
+    },
+    market: {
+      upstreamMode: "QUOTE",
+      reconnectAttempts: 10,
+      quoteStaleMs: 60_000,
+      redis: {
+        controlChannel: "market:control",
+        eventsChannel: "market:events:quotes",
+        latestQuotePrefix: "market:quote:latest",
+        candlePrefix: "market:candles:1m",
+      },
+      candleRetentionMs: 14 * 24 * 60 * 60 * 1000,
+    },
+    subscriptions: {
+      maxClients: 10,
+      leasePrefix: "market:subscription:leases",
+      leaseMs: 60_000,
+      heartbeatMs: 60_000,
+      sweepMs: 60_000,
+    },
+    paytm: {
+      apiKey: "test-api-key",
+      apiSecret: "test-secret-key",
+    },
+  };
   const catalog = await makeCatalog("/tmp/mock-trader-catalog-app.json");
   const store = new InMemoryStore();
   const leases = new InMemoryLeases();
@@ -66,7 +115,7 @@ test("app exposes health, instrument search, and quotes", async () => {
   });
 
   const app = buildApp({
-    env: { ...env, docsDir: join(import.meta.dir, "..", "..", "docs") },
+    env,
     catalog,
     marketData,
     sessionService,
@@ -86,7 +135,7 @@ test("app exposes health, instrument search, and quotes", async () => {
   );
   const docsPage = await docsPageResponse.text();
   expect(docsPage).toContain("https://cdn.tailwindcss.com");
-  expect(docsPage).toContain("Paytm stays behind your backend.");
+  expect(docsPage).toContain("No Paytm auth is exposed to the browser.");
 
   const readyResponse = await app.handle(new Request("http://localhost/ready"));
   expect(readyResponse.status).toBe(503);

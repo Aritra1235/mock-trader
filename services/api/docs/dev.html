@@ -123,7 +123,7 @@
           <thead><tr class="text-muted text-xs"><th class="px-3 py-2 text-left font-semibold">Tool</th><th class="px-3 py-2 text-left font-semibold">Version</th><th class="px-3 py-2 text-left font-semibold">Required for</th></tr></thead>
           <tbody class="divide-y divide-border">
             <tr><td class="px-3 py-2 font-mono text-xs">Bun</td><td class="px-3 py-2 text-xs">>= 1.1</td><td class="px-3 py-2 text-xs text-muted">Runtime, package manager, script runner.</td></tr>
-            <tr><td class="px-3 py-2 font-mono text-xs">Docker</td><td class="px-3 py-2 text-xs">>= 24</td><td class="px-3 py-2 text-xs text-muted">Redis container via Compose.</td></tr>
+            <tr><td class="px-3 py-2 font-mono text-xs">Docker</td><td class="px-3 py-2 text-xs">>= 24</td><td class="px-3 py-2 text-xs text-muted">Redis and Postgres containers via Compose.</td></tr>
             <tr><td class="px-3 py-2 font-mono text-xs">Paytm SmartConnect account</td><td class="px-3 py-2 text-xs">—</td><td class="px-3 py-2 text-xs text-muted">API keys for upstream market data.</td></tr>
           </tbody>
         </table>
@@ -143,9 +143,9 @@
       <section id="workflow" class="mt-12">
         <h2 class="text-xl font-bold">Local workflow</h2>
         <p class="mt-3 leading-relaxed text-muted">
-          Start services in dependency order. Redis must be running before the API,
-          and the catalog should be synced before market commands work. Each step
-          runs in a separate terminal unless backgrounded.
+          Start services in dependency order. Redis and Postgres must be running
+          before the API, and the catalog should be synced before market commands
+          work. Each step runs in a separate terminal unless backgrounded.
         </p>
 
         <div class="mt-6 space-y-4">
@@ -153,13 +153,14 @@
             <div class="flex items-start gap-3">
               <span class="step-number">1</span>
               <div class="min-w-0 flex-1">
-                <h3 class="font-semibold">Start Redis</h3>
-                <p class="text-sm text-muted">Spin up the Redis container via Docker Compose:</p>
-                <pre class="mt-2 overflow-x-auto rounded-lg bg-base p-3 font-mono text-sm text-text">docker compose -f deploy/docker-compose.yml up redis</pre>
+                <h3 class="font-semibold">Start Redis and Postgres</h3>
+                <p class="text-sm text-muted">Spin up the Redis and Postgres containers via Docker Compose:</p>
+                <pre class="mt-2 overflow-x-auto rounded-lg bg-base p-3 font-mono text-sm text-text">docker compose -f deploy/docker-compose.yml up redis postgres</pre>
                 <p class="mt-1 text-xs text-muted">
                   Redis acts as the backplane: pub/sub message bus, quote cache,
-                  subscription lease storage, and candle cache. It must be reachable
-                  on port 6379.
+                  subscription lease storage, and candle cache. Postgres backs the
+                  Drizzle schema and migration state. They must be reachable on
+                  ports 6379 and 5432.
                 </p>
               </div>
             </div>
@@ -168,6 +169,21 @@
           <div class="rounded-xl border border-border bg-surface p-5">
             <div class="flex items-start gap-3">
               <span class="step-number">2</span>
+              <div class="min-w-0 flex-1">
+                <h3 class="font-semibold">Apply database migrations</h3>
+                <p class="text-sm text-muted">Bring the local Postgres schema up to date:</p>
+                <pre class="mt-2 overflow-x-auto rounded-lg bg-base p-3 font-mono text-sm text-text">bun run db:migrate</pre>
+                <p class="mt-1 text-xs text-muted">
+                  Runs the checked-in Drizzle migrations so the API starts against
+                  the expected schema.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="rounded-xl border border-border bg-surface p-5">
+            <div class="flex items-start gap-3">
+              <span class="step-number">3</span>
               <div class="min-w-0 flex-1">
                 <h3 class="font-semibold">Sync the instrument catalog</h3>
                 <p class="text-sm text-muted">Refresh the local Paytm security-master snapshot:</p>
@@ -183,7 +199,7 @@
 
           <div class="rounded-xl border border-border bg-surface p-5">
             <div class="flex items-start gap-3">
-              <span class="step-number">3</span>
+              <span class="step-number">4</span>
               <div class="min-w-0 flex-1">
                 <h3 class="font-semibold">Start the API server</h3>
                 <p class="text-sm text-muted">Launch the HTTP and WebSocket server:</p>
@@ -199,7 +215,7 @@
 
           <div class="rounded-xl border border-border bg-surface p-5">
             <div class="flex items-start gap-3">
-              <span class="step-number">4</span>
+              <span class="step-number">5</span>
               <div class="min-w-0 flex-1">
                 <h3 class="font-semibold">Start the ingest worker</h3>
                 <p class="text-sm text-muted">Run the Paytm upstream stream consumer in another terminal:</p>
@@ -233,6 +249,11 @@
               where your Paytm account is logged in. Paytm will redirect to your
               configured callback URL with a <code class="rounded bg-base px-1 font-mono text-text">requestToken</code>
               query parameter.
+            </p>
+            <p class="mt-2 text-sm text-muted">
+              This operator command only needs the Paytm credentials and local
+              <code class="rounded bg-base px-1 font-mono text-text">data/</code> files. Redis and
+              Postgres do not need to be running.
             </p>
           </div>
 
@@ -339,7 +360,7 @@ curl "http://localhost:3000/v1/market/quotes?ids=RELIANCE&mode=QUOTE"</pre>
             <summary class="cursor-pointer px-5 py-4 font-semibold text-sm group-open:border-b group-open:border-border">Redis connection refused</summary>
             <div class="px-5 pb-4 pt-3 text-sm text-muted">
               <p>Ensure Docker is running and Redis is started:</p>
-              <pre class="mt-2 rounded-lg bg-base p-3 font-mono text-xs text-text">docker compose -f deploy/docker-compose.yml up redis</pre>
+              <pre class="mt-2 rounded-lg bg-base p-3 font-mono text-xs text-text">docker compose -f deploy/docker-compose.yml up redis postgres</pre>
               <p class="mt-2">Check if Redis is listening on port 6379.</p>
             </div>
           </details>
@@ -351,6 +372,13 @@ curl "http://localhost:3000/v1/market/quotes?ids=RELIANCE&mode=QUOTE"</pre>
 # open URL, copy requestToken
 bun run paytm:exchange-token -- &lt;requestToken&gt;
 bun run paytm:session</pre>
+            </div>
+          </details>
+          <details class="group rounded-xl border border-border bg-surface">
+            <summary class="cursor-pointer px-5 py-4 font-semibold text-sm group-open:border-b group-open:border-border">DB schema is out of date</summary>
+            <div class="px-5 pb-4 pt-3 text-sm text-muted">
+              <p>Apply the checked-in Drizzle migrations:</p>
+              <pre class="mt-2 rounded-lg bg-base p-3 font-mono text-xs text-text">bun run db:migrate</pre>
             </div>
           </details>
           <details class="group rounded-xl border border-border bg-surface">
