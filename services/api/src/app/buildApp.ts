@@ -44,7 +44,7 @@ export function buildApp(deps: AppDependencies) {
       }),
     )
 
-    .all(`/${apiVersion}/api/auth/*`, betterAuthView)
+    .all(`/api/${apiVersion}/auth/*`, betterAuthView)
 
     .get("/", async () => ({
       service: deps.env.service.name,
@@ -86,7 +86,7 @@ export function buildApp(deps: AppDependencies) {
         websocketPath: deps.env.websocket.path,
       };
     })
-    .get(`/${apiVersion}/market/stats`, async () => ({
+    .get(`/api/${apiVersion}/market/stats`, async () => ({
       catalogCount: deps.catalog.count(),
       catalogSyncedAt: deps.catalog.getLastSyncedAt(),
       upstreamMode: deps.env.market.upstreamMode,
@@ -103,7 +103,7 @@ export function buildApp(deps: AppDependencies) {
           typeof query.scripType === "string" ? query.scripType : undefined,
       }),
     )
-    .get(`/${apiVersion}/market/instruments/:id`, async ({ params, set }) => {
+    .get(`/api/${apiVersion}/market/instruments/:id`, async ({ params, set }) => {
       const instrument = deps.catalog.resolve(params.id);
       if (!instrument) {
         set.status = 404;
@@ -111,7 +111,7 @@ export function buildApp(deps: AppDependencies) {
       }
       return instrument;
     })
-    .get(`/${apiVersion}/market/quotes`, async ({ query, set }) => {
+    .get(`/api/${apiVersion}/market/quotes`, async ({ query, set }) => {
       const ids =
         typeof query.ids === "string"
           ? query.ids
@@ -134,7 +134,7 @@ export function buildApp(deps: AppDependencies) {
         data: await deps.marketData.getQuotes(ids, mode),
       };
     })
-    .get(`/${apiVersion}/market/candles/:id`, async ({ params, query, set }) => {
+    .get(`/api/${apiVersion}/market/candles/:id`, async ({ params, query, set }) => {
       const fromMs =
         typeof query.from === "string"
           ? Date.parse(query.from)
@@ -167,7 +167,7 @@ export function buildApp(deps: AppDependencies) {
         candles: result.candles,
       };
     })
-    .get(`/${apiVersion}/market/provider/chart`, async ({ query, set }) => {
+    .get(`/api/${apiVersion}/market/provider/chart`, async ({ query, set }) => {
       const params = Object.fromEntries(
         Object.entries(query).flatMap(([key, value]) =>
           typeof value === "string" ? [[key, value]] : [],
