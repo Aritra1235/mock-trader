@@ -41,9 +41,7 @@
   "paths": {
     "/": {
       "get": {
-        "tags": [
-          "System"
-        ],
+        "tags": ["System"],
         "operationId": "getRoot",
         "summary": "Get service overview",
         "description": "Returns a lightweight service descriptor with the docs entrypoint and configured WebSocket path.",
@@ -73,9 +71,7 @@
     },
     "/health": {
       "get": {
-        "tags": [
-          "System"
-        ],
+        "tags": ["System"],
         "operationId": "getHealth",
         "summary": "Get process health",
         "description": "Returns lightweight liveness information for the API process only.",
@@ -95,9 +91,7 @@
     },
     "/ready": {
       "get": {
-        "tags": [
-          "System"
-        ],
+        "tags": ["System"],
         "operationId": "getReadiness",
         "summary": "Get readiness status",
         "description": "Performs a deeper preflight check across Redis, subscription lease storage, Paytm readable session tokens, and the instrument catalog. Returns `503` when one or more dependencies are unavailable.",
@@ -161,9 +155,7 @@
     },
     "/v1/market/stats": {
       "get": {
-        "tags": [
-          "Market"
-        ],
+        "tags": ["Market"],
         "operationId": "getMarketStats",
         "summary": "Get market service metadata",
         "description": "Returns catalog status and stream configuration data exposed to clients.",
@@ -183,9 +175,7 @@
     },
     "/v1/market/instruments/search": {
       "get": {
-        "tags": [
-          "Market"
-        ],
+        "tags": ["Market"],
         "operationId": "searchInstruments",
         "summary": "Search instruments",
         "description": "Searches the locally cached security master snapshot by symbol, security id, or name. When `q` is omitted, the endpoint returns the first page of instruments after optional exchange and scrip type filtering.",
@@ -247,9 +237,7 @@
     },
     "/v1/market/instruments/{id}": {
       "get": {
-        "tags": [
-          "Market"
-        ],
+        "tags": ["Market"],
         "operationId": "getInstrument",
         "summary": "Resolve a single instrument",
         "description": "Resolves an instrument by instrument key, security id, or symbol.",
@@ -291,9 +279,7 @@
     },
     "/v1/market/quotes": {
       "get": {
-        "tags": [
-          "Market"
-        ],
+        "tags": ["Market"],
         "operationId": "getQuotes",
         "summary": "Get latest quotes",
         "description": "Returns the latest cached quote envelope for each resolved instrument. Missing or stale quotes are refreshed through the backend before the response is returned.",
@@ -401,9 +387,7 @@
     },
     "/v1/market/candles/{id}": {
       "get": {
-        "tags": [
-          "Market"
-        ],
+        "tags": ["Market"],
         "operationId": "getCandles",
         "summary": "Get candles for an instrument",
         "description": "Returns stored 1-minute candles or server-aggregated higher intervals for a resolved instrument.",
@@ -489,9 +473,7 @@
     },
     "/v1/market/provider/chart": {
       "get": {
-        "tags": [
-          "Market"
-        ],
+        "tags": ["Market"],
         "operationId": "getProviderChart",
         "summary": "Proxy provider chart data",
         "description": "Proxies chart data from the upstream provider using the exact query parameters supplied by the caller. This is a thin pass-through endpoint, so the success payload shape is intentionally open-ended.",
@@ -566,9 +548,7 @@
     },
     "/docs": {
       "get": {
-        "tags": [
-          "Documentation"
-        ],
+        "tags": ["Documentation"],
         "operationId": "getDocsRedirect",
         "summary": "Redirect to docs index",
         "responses": {
@@ -588,9 +568,7 @@
     },
     "/docs/": {
       "get": {
-        "tags": [
-          "Documentation"
-        ],
+        "tags": ["Documentation"],
         "operationId": "getDocsSlashRedirect",
         "summary": "Redirect to docs index",
         "responses": {
@@ -602,9 +580,7 @@
     },
     "/docs/index.html": {
       "get": {
-        "tags": [
-          "Documentation"
-        ],
+        "tags": ["Documentation"],
         "operationId": "getDocsIndex",
         "summary": "Get HTML docs index",
         "responses": {
@@ -623,9 +599,7 @@
     },
     "/docs/{name}": {
       "get": {
-        "tags": [
-          "Documentation"
-        ],
+        "tags": ["Documentation"],
         "operationId": "getNamedHtmlDoc",
         "summary": "Get a named HTML doc page",
         "description": "Returns one of the HTML docs pages. Supported names are `api`, `api.html`, `dev`, `dev.html`, `deploy`, `deploy.html`, and `index.html`.",
@@ -675,9 +649,7 @@
     },
     "/docs/md/{name}": {
       "get": {
-        "tags": [
-          "Documentation"
-        ],
+        "tags": ["Documentation"],
         "operationId": "getNamedMarkdownDoc",
         "summary": "Get a named Markdown doc page",
         "description": "Returns one of the Markdown docs pages. Supported names are `api`, `api.md`, `dev`, `dev.md`, `deploy`, and `deploy.md`.",
@@ -688,14 +660,7 @@
             "required": true,
             "schema": {
               "type": "string",
-              "enum": [
-                "api",
-                "api.md",
-                "dev",
-                "dev.md",
-                "deploy",
-                "deploy.md"
-              ]
+              "enum": ["api", "api.md", "dev", "dev.md", "deploy", "deploy.md"]
             }
           }
         ],
@@ -726,9 +691,7 @@
     },
     "/ws/market": {
       "get": {
-        "tags": [
-          "WebSocket"
-        ],
+        "tags": ["WebSocket"],
         "operationId": "connectMarketWebSocket",
         "summary": "Upgrade to the market data WebSocket",
         "description": "Initiates an HTTP upgrade to a WebSocket connection for live quote streaming. OpenAPI does not natively model WebSocket channels, so the detailed message contract is described with vendor extensions on this operation.",
@@ -895,22 +858,13 @@
     "schemas": {
       "MarketMode": {
         "type": "string",
-        "enum": [
-          "LTP",
-          "QUOTE",
-          "FULL"
-        ],
+        "enum": ["LTP", "QUOTE", "FULL"],
         "description": "Requested market data detail level."
       },
       "RootResponse": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "service",
-          "status",
-          "docs",
-          "websocket"
-        ],
+        "required": ["service", "status", "docs", "websocket"],
         "properties": {
           "service": {
             "type": "string"
@@ -930,10 +884,7 @@
       "HealthResponse": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "status",
-          "service"
-        ],
+        "required": ["status", "service"],
         "properties": {
           "status": {
             "type": "string",
@@ -947,12 +898,7 @@
       "ReadinessChecks": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "redis",
-          "subscriptionLeases",
-          "paytmSession",
-          "catalog"
-        ],
+        "required": ["redis", "subscriptionLeases", "paytmSession", "catalog"],
         "properties": {
           "redis": {
             "type": "boolean"
@@ -994,10 +940,7 @@
             "minimum": 0
           },
           "catalogSyncedAt": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "format": "date-time"
           },
           "websocketPath": {
@@ -1020,10 +963,7 @@
             "minimum": 0
           },
           "catalogSyncedAt": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "format": "date-time"
           },
           "upstreamMode": {
@@ -1070,10 +1010,7 @@
             "type": "string"
           },
           "series": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "exchange": {
             "type": "string"
@@ -1088,46 +1025,25 @@
             "type": "string"
           },
           "tickSize": {
-            "type": [
-              "number",
-              "null"
-            ]
+            "type": ["number", "null"]
           },
           "lotSize": {
-            "type": [
-              "number",
-              "null"
-            ]
+            "type": ["number", "null"]
           },
           "upperLimit": {
-            "type": [
-              "number",
-              "null"
-            ]
+            "type": ["number", "null"]
           },
           "lowerLimit": {
-            "type": [
-              "number",
-              "null"
-            ]
+            "type": ["number", "null"]
           },
           "expiryDate": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "strikePrice": {
-            "type": [
-              "number",
-              "null"
-            ]
+            "type": ["number", "null"]
           },
           "freezeQuantity": {
-            "type": [
-              "number",
-              "null"
-            ]
+            "type": ["number", "null"]
           },
           "searchableText": {
             "type": "string"
@@ -1137,39 +1053,23 @@
       "QuoteDepthLevel": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "quantity",
-          "price",
-          "orders"
-        ],
+        "required": ["quantity", "price", "orders"],
         "properties": {
           "quantity": {
-            "type": [
-              "number",
-              "null"
-            ]
+            "type": ["number", "null"]
           },
           "price": {
-            "type": [
-              "number",
-              "null"
-            ]
+            "type": ["number", "null"]
           },
           "orders": {
-            "type": [
-              "number",
-              "null"
-            ]
+            "type": ["number", "null"]
           }
         }
       },
       "QuoteDepth": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "buy",
-          "sell"
-        ],
+        "required": ["buy", "sell"],
         "properties": {
           "buy": {
             "type": "array",
@@ -1188,36 +1088,19 @@
       "Ohlc": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "open",
-          "high",
-          "low",
-          "close"
-        ],
+        "required": ["open", "high", "low", "close"],
         "properties": {
           "open": {
-            "type": [
-              "number",
-              "null"
-            ]
+            "type": ["number", "null"]
           },
           "high": {
-            "type": [
-              "number",
-              "null"
-            ]
+            "type": ["number", "null"]
           },
           "low": {
-            "type": [
-              "number",
-              "null"
-            ]
+            "type": ["number", "null"]
           },
           "close": {
-            "type": [
-              "number",
-              "null"
-            ]
+            "type": ["number", "null"]
           }
         }
       },
@@ -1271,72 +1154,39 @@
             "type": "boolean"
           },
           "tradable": {
-            "type": [
-              "boolean",
-              "null"
-            ]
+            "type": ["boolean", "null"]
           },
           "lastPrice": {
-            "type": [
-              "number",
-              "null"
-            ]
+            "type": ["number", "null"]
           },
           "changePercent": {
-            "type": [
-              "number",
-              "null"
-            ]
+            "type": ["number", "null"]
           },
           "changeAbsolute": {
-            "type": [
-              "number",
-              "null"
-            ]
+            "type": ["number", "null"]
           },
           "lastTradeTime": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "format": "date-time"
           },
           "lastUpdateTime": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "format": "date-time"
           },
           "lastTradedQuantity": {
-            "type": [
-              "number",
-              "null"
-            ]
+            "type": ["number", "null"]
           },
           "averageTradedPrice": {
-            "type": [
-              "number",
-              "null"
-            ]
+            "type": ["number", "null"]
           },
           "volumeTraded": {
-            "type": [
-              "number",
-              "null"
-            ]
+            "type": ["number", "null"]
           },
           "totalBuyQuantity": {
-            "type": [
-              "number",
-              "null"
-            ]
+            "type": ["number", "null"]
           },
           "totalSellQuantity": {
-            "type": [
-              "number",
-              "null"
-            ]
+            "type": ["number", "null"]
           },
           "ohlc": {
             "oneOf": [
@@ -1349,28 +1199,16 @@
             ]
           },
           "week52High": {
-            "type": [
-              "number",
-              "null"
-            ]
+            "type": ["number", "null"]
           },
           "week52Low": {
-            "type": [
-              "number",
-              "null"
-            ]
+            "type": ["number", "null"]
           },
           "oi": {
-            "type": [
-              "number",
-              "null"
-            ]
+            "type": ["number", "null"]
           },
           "changeOi": {
-            "type": [
-              "number",
-              "null"
-            ]
+            "type": ["number", "null"]
           },
           "depth": {
             "oneOf": [
@@ -1383,10 +1221,7 @@
             ]
           },
           "providerTs": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "description": "Provider timestamp in Unix milliseconds when available."
           },
           "receivedAt": {
@@ -1402,11 +1237,7 @@
       "QuoteEnvelope": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "instrument",
-          "quote",
-          "stale"
-        ],
+        "required": ["instrument", "quote", "stale"],
         "properties": {
           "instrument": {
             "$ref": "#/components/schemas/InstrumentRecord"
@@ -1429,9 +1260,7 @@
       "QuoteResponse": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "data"
-        ],
+        "required": ["data"],
         "properties": {
           "data": {
             "type": "array",
@@ -1476,10 +1305,7 @@
             "type": "number"
           },
           "volume": {
-            "type": [
-              "number",
-              "null"
-            ]
+            "type": ["number", "null"]
           },
           "trades": {
             "type": "integer",
@@ -1494,11 +1320,7 @@
       "CandleResponse": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "instrument",
-          "interval",
-          "candles"
-        ],
+        "required": ["instrument", "interval", "candles"],
         "properties": {
           "instrument": {
             "$ref": "#/components/schemas/InstrumentRecord"
@@ -1522,9 +1344,7 @@
       "ErrorResponse": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "error"
-        ],
+        "required": ["error"],
         "properties": {
           "error": {
             "type": "string"
@@ -1534,10 +1354,7 @@
       "ProviderChartErrorResponse": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "error",
-          "message"
-        ],
+        "required": ["error", "message"],
         "properties": {
           "error": {
             "type": "string"
@@ -1613,12 +1430,7 @@
       "SocketConnectedMessage": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "type",
-          "gatewayId",
-          "upstreamMode",
-          "maxSubscriptions"
-        ],
+        "required": ["type", "gatewayId", "upstreamMode", "maxSubscriptions"],
         "properties": {
           "type": {
             "type": "string",
@@ -1639,9 +1451,7 @@
       "SocketPingMessage": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "type"
-        ],
+        "required": ["type"],
         "properties": {
           "type": {
             "type": "string",
@@ -1652,9 +1462,7 @@
       "SocketPongMessage": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "type"
-        ],
+        "required": ["type"],
         "properties": {
           "type": {
             "type": "string",
@@ -1665,10 +1473,7 @@
       "SocketSubscribeMessage": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "type",
-          "symbols"
-        ],
+        "required": ["type", "symbols"],
         "properties": {
           "type": {
             "type": "string",
@@ -1689,10 +1494,7 @@
       "SocketUnsubscribeMessage": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "type",
-          "symbols"
-        ],
+        "required": ["type", "symbols"],
         "properties": {
           "type": {
             "type": "string",
@@ -1710,18 +1512,11 @@
       "SocketSubscriptionAckMessage": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "type",
-          "count",
-          "symbols"
-        ],
+        "required": ["type", "count", "symbols"],
         "properties": {
           "type": {
             "type": "string",
-            "enum": [
-              "subscribed",
-              "unsubscribed"
-            ]
+            "enum": ["subscribed", "unsubscribed"]
           },
           "count": {
             "type": "integer",
@@ -1738,10 +1533,7 @@
       "SocketQuoteMessage": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "type",
-          "data"
-        ],
+        "required": ["type", "data"],
         "properties": {
           "type": {
             "type": "string",
@@ -1755,10 +1547,7 @@
       "SocketErrorMessage": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "type",
-          "message"
-        ],
+        "required": ["type", "message"],
         "properties": {
           "type": {
             "type": "string",

@@ -7,10 +7,10 @@ const client = new PaytmHttpClient(env.paytm.apiKey, env.paytm.apiSecret);
 const catalog = new CatalogService(
   client,
   env.paths.catalogSnapshot,
-  env.catalog.files
+  env.catalog.files,
 );
 
 const count = await catalog.syncFromProvider();
 console.log(
-  `Catalog sync complete: ${count} instruments written to ${env.paths.catalogSnapshot}`
+  `Catalog sync complete: ${count} instruments written to ${env.paths.catalogSnapshot}`,
 );

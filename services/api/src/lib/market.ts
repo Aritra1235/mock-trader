@@ -52,7 +52,9 @@ export function normalizeTimestamp(input: unknown): number | null {
       return input;
     }
     const unixSeconds =
-      input < UNIX_SECONDS_2020 ? input + PAYTM_1980_EPOCH_OFFSET_SECONDS : input;
+      input < UNIX_SECONDS_2020
+        ? input + PAYTM_1980_EPOCH_OFFSET_SECONDS
+        : input;
     return unixSeconds * 1000;
   }
   if (typeof input === "string") {
@@ -74,7 +76,7 @@ export function toIsoString(input: unknown): string | null {
 export function buildInstrumentKey(
   exchangeType: string,
   scripType: string,
-  securityId: string
+  securityId: string,
 ) {
   return `${exchangeType}:${scripType}:${securityId}`;
 }
@@ -83,7 +85,11 @@ export function buildSubscriptionKey(preference: SubscriptionPreference) {
   return `${preference.instrumentKey}:${preference.modeType}`;
 }
 
-export function inferScripType(instrumentType: string, symbol: string, segment: string) {
+export function inferScripType(
+  instrumentType: string,
+  symbol: string,
+  segment: string,
+) {
   const upperType = instrumentType.toUpperCase();
   if (OPTION_MARKERS.some((marker) => upperType.includes(marker))) {
     return "OPTION";
@@ -94,7 +100,11 @@ export function inferScripType(instrumentType: string, symbol: string, segment: 
   if (upperType.includes("ETF")) {
     return "ETF";
   }
-  if (upperType.includes("INDEX") || segment.toUpperCase() === "I" || symbol.includes("NIFTY")) {
+  if (
+    upperType.includes("INDEX") ||
+    segment.toUpperCase() === "I" ||
+    symbol.includes("NIFTY")
+  ) {
     return "INDEX";
   }
   return "EQUITY";
@@ -148,7 +158,9 @@ export function parseSecurityMaster(csv: string) {
       continue;
     }
 
-    const raw = Object.fromEntries(headers.map((header, index) => [header, cells[index]]));
+    const raw = Object.fromEntries(
+      headers.map((header, index) => [header, cells[index]]),
+    );
     const securityId = raw.security_id;
     const exchange = raw.exchange.toUpperCase();
     const symbol = raw.symbol.toUpperCase();
@@ -174,7 +186,8 @@ export function parseSecurityMaster(csv: string) {
       expiryDate: raw.expiry_date || null,
       strikePrice: parseNumber(raw.strike_price),
       freezeQuantity: parseNumber(raw.freeze_quantity),
-      searchableText: `${symbol} ${name} ${exchange} ${instrumentType} ${securityId}`.toLowerCase(),
+      searchableText:
+        `${symbol} ${name} ${exchange} ${instrumentType} ${securityId}`.toLowerCase(),
     });
   }
 
@@ -184,12 +197,16 @@ export function parseSecurityMaster(csv: string) {
 export function normalizeQuotePayload(
   preference: SubscriptionPreference,
   raw: Record<string, unknown>,
-  receivedAt = new Date().toISOString()
+  receivedAt = new Date().toISOString(),
 ): QuotePayload {
   const ohlcRaw =
-    raw.ohlc && typeof raw.ohlc === "object" ? (raw.ohlc as Record<string, unknown>) : null;
+    raw.ohlc && typeof raw.ohlc === "object"
+      ? (raw.ohlc as Record<string, unknown>)
+      : null;
   const rawDepth =
-    raw.depth && typeof raw.depth === "object" ? (raw.depth as Record<string, unknown>) : null;
+    raw.depth && typeof raw.depth === "object"
+      ? (raw.depth as Record<string, unknown>)
+      : null;
 
   return {
     instrumentKey: preference.instrumentKey,
@@ -245,7 +262,10 @@ function normalizeDepthSide(input: unknown): QuoteDepthLevel[] {
   }
 
   return input.map((entry) => {
-    const level = entry && typeof entry === "object" ? (entry as Record<string, unknown>) : {};
+    const level =
+      entry && typeof entry === "object"
+        ? (entry as Record<string, unknown>)
+        : {};
     return {
       quantity: parseNumber(level.quantity),
       price: parseNumber(level.price),
@@ -274,7 +294,7 @@ export function createOrMergeCandle(
   price: number,
   timestamp: number,
   volume: number | null,
-  intervalMs = 60_000
+  intervalMs = 60_000,
 ): CandleRecord {
   const bucketStart = bucketTimestamp(timestamp, intervalMs);
 
@@ -306,7 +326,10 @@ export function createOrMergeCandle(
   };
 }
 
-export function aggregateCandles(candles: CandleRecord[], targetIntervalMs: number) {
+export function aggregateCandles(
+  candles: CandleRecord[],
+  targetIntervalMs: number,
+) {
   if (candles.length === 0) {
     return [];
   }
@@ -336,17 +359,24 @@ export function aggregateCandles(candles: CandleRecord[], targetIntervalMs: numb
     existing.low = Math.min(existing.low, candle.low);
     existing.close = candle.close;
     existing.trades += candle.trades;
-    existing.lastUpdatedAt = Math.max(existing.lastUpdatedAt, candle.lastUpdatedAt);
+    existing.lastUpdatedAt = Math.max(
+      existing.lastUpdatedAt,
+      candle.lastUpdatedAt,
+    );
     existing.volume =
       existing.volume == null && candle.volume == null
         ? null
         : (existing.volume ?? 0) + (candle.volume ?? 0);
   }
 
-  return Array.from(buckets.values()).sort((left, right) => left.bucketStart - right.bucketStart);
+  return Array.from(buckets.values()).sort(
+    (left, right) => left.bucketStart - right.bucketStart,
+  );
 }
 
-export function preferenceToProviderPayload(preference: SubscriptionPreference) {
+export function preferenceToProviderPayload(
+  preference: SubscriptionPreference,
+) {
   return {
     exchangeType: preference.exchangeType,
     modeType: preference.modeType,
@@ -359,7 +389,10 @@ export function preferenceToRestPreference(preference: SubscriptionPreference) {
   return `${preference.exchangeType}:${preference.securityId}:${preference.scripType}`;
 }
 
-export function normalizeMode(input: unknown, fallback: MarketMode): MarketMode {
+export function normalizeMode(
+  input: unknown,
+  fallback: MarketMode,
+): MarketMode {
   if (input === "LTP" || input === "QUOTE" || input === "FULL") {
     return input;
   }

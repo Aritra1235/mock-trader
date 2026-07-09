@@ -1,20 +1,20 @@
-import dotenv from "dotenv";
 import { join } from "node:path";
+import dotenv from "dotenv";
 import type { MarketMode } from "../types/market";
 import type {
-  ServiceConfig,
-  RedisConfig,
-  DBConfig,
-  PathsConfig,
   CatalogConfig,
-  WebSocketConfig,
-  MarketConfig,
-  SubscriptionConfig,
-  PaytmConfig,
-  RuntimeEnv,
-  OperatorEnv,
-  IngestWorkerEnv,
   CatalogWorkerEnv,
+  DBConfig,
+  IngestWorkerEnv,
+  MarketConfig,
+  OperatorEnv,
+  PathsConfig,
+  PaytmConfig,
+  RedisConfig,
+  RuntimeEnv,
+  ServiceConfig,
+  SubscriptionConfig,
+  WebSocketConfig,
 } from "./interfaces";
 
 dotenv.config();
@@ -72,7 +72,8 @@ function loadPathsConfig(): PathsConfig {
   return {
     docs: process.env.DOCS_DIR ?? join(import.meta.dir, "..", "..", "docs"),
     data: dataDir,
-    session: process.env.PAYTM_SESSION_PATH ?? join(dataDir, "paytm-session.json"),
+    session:
+      process.env.PAYTM_SESSION_PATH ?? join(dataDir, "paytm-session.json"),
     catalogSnapshot:
       process.env.CATALOG_SNAPSHOT_PATH ??
       join(dataDir, "instruments.snapshot.json"),
@@ -106,8 +107,7 @@ function loadMarketConfig(): MarketConfig {
     quoteStaleMs: asPositiveInt(process.env.QUOTE_STALE_MS, 15_000),
     redis: {
       controlChannel: process.env.PRICE_CONTROL_CHANNEL ?? "market:control",
-      eventsChannel:
-        process.env.PRICE_EVENTS_CHANNEL ?? "market:events:quotes",
+      eventsChannel: process.env.PRICE_EVENTS_CHANNEL ?? "market:events:quotes",
       latestQuotePrefix:
         process.env.LATEST_QUOTE_PREFIX ?? "market:quote:latest",
       candlePrefix: process.env.CANDLE_PREFIX ?? "market:candles:1m",

@@ -5,8 +5,12 @@ import {
   normalizeMode,
   parseSecurityMaster,
 } from "../lib/market";
-import { PaytmHttpClient } from "../providers/paytmHttpClient";
-import type { InstrumentRecord, MarketMode, SubscriptionPreference } from "../types/market";
+import type { PaytmHttpClient } from "../providers/paytmHttpClient";
+import type {
+  InstrumentRecord,
+  MarketMode,
+  SubscriptionPreference,
+} from "../types/market";
 
 interface SearchOptions {
   q?: string;
@@ -24,7 +28,7 @@ export class CatalogService {
   constructor(
     private readonly client: PaytmHttpClient,
     private readonly snapshotPath: string,
-    private readonly fileNames: string[]
+    private readonly fileNames: string[],
   ) {}
 
   async loadSnapshot() {
@@ -51,11 +55,15 @@ export class CatalogService {
     }
 
     const records = Array.from(merged.values()).sort((left, right) =>
-      left.symbol.localeCompare(right.symbol)
+      left.symbol.localeCompare(right.symbol),
     );
 
     await mkdir(dirname(this.snapshotPath), { recursive: true });
-    await writeFile(this.snapshotPath, JSON.stringify(records, null, 2), "utf-8");
+    await writeFile(
+      this.snapshotPath,
+      JSON.stringify(records, null, 2),
+      "utf-8",
+    );
     this.replaceRecords(records);
     this.lastSyncedAt = new Date().toISOString();
     return records.length;
@@ -131,7 +139,7 @@ export class CatalogService {
 
   resolvePreference(
     input: Record<string, unknown>,
-    defaultMode: MarketMode
+    defaultMode: MarketMode,
   ): SubscriptionPreference | null {
     const modeType = normalizeMode(input.modeType, defaultMode);
 
@@ -149,8 +157,13 @@ export class CatalogService {
       };
     }
 
-    if (typeof input.securityId === "string" || typeof input.scripId === "string") {
-      const instrument = this.resolve(String(input.securityId ?? input.scripId));
+    if (
+      typeof input.securityId === "string" ||
+      typeof input.scripId === "string"
+    ) {
+      const instrument = this.resolve(
+        String(input.securityId ?? input.scripId),
+      );
       if (instrument) {
         return {
           instrumentKey: instrument.instrumentKey,
@@ -185,7 +198,7 @@ export class CatalogService {
         instrumentKey: buildInstrumentKey(
           input.exchangeType.toUpperCase(),
           input.scripType.toUpperCase(),
-          securityId
+          securityId,
         ),
         securityId,
         exchangeType: input.exchangeType.toUpperCase(),
@@ -198,7 +211,9 @@ export class CatalogService {
   }
 
   private replaceRecords(records: InstrumentRecord[]) {
-    this.instruments = new Map(records.map((record) => [record.instrumentKey, record]));
+    this.instruments = new Map(
+      records.map((record) => [record.instrumentKey, record]),
+    );
     this.bySecurityId = new Map();
     this.bySymbol = new Map();
 

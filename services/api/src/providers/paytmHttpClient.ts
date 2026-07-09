@@ -6,7 +6,7 @@ const PAYTM_LOGIN = "https://login.paytmmoney.com/merchant-login?apiKey=";
 export class PaytmHttpClient {
   constructor(
     private readonly apiKey: string | null,
-    private readonly apiSecret: string | null
+    private readonly apiSecret: string | null,
   ) {}
 
   getLoginUrl(state: string) {
@@ -21,34 +21,41 @@ export class PaytmHttpClient {
       throw new Error("Paytm credentials are not configured");
     }
 
-    return this.fetchJson<PaytmTokenResponse>(`${PAYTM_HOST}/accounts/v2/gettoken`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
+    return this.fetchJson<PaytmTokenResponse>(
+      `${PAYTM_HOST}/accounts/v2/gettoken`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          api_key: this.apiKey,
+          api_secret_key: this.apiSecret,
+          request_token: requestToken,
+        }),
       },
-      body: JSON.stringify({
-        api_key: this.apiKey,
-        api_secret_key: this.apiSecret,
-        request_token: requestToken,
-      }),
-    });
+    );
   }
 
   async fetchSecurityMaster(fileName: string) {
     const response = await fetch(
-      `${PAYTM_HOST}/data/v1/scrips/${encodeURIComponent(fileName)}`
+      `${PAYTM_HOST}/data/v1/scrips/${encodeURIComponent(fileName)}`,
     );
     if (!response.ok) {
       throw new Error(
-        `Failed to download security master ${fileName}: ${response.status} ${response.statusText}`
+        `Failed to download security master ${fileName}: ${response.status} ${response.statusText}`,
       );
     }
     return response.text();
   }
 
-  async fetchLiveMarketData(jwtToken: string, mode: string, preferences: string[]) {
+  async fetchLiveMarketData(
+    jwtToken: string,
+    mode: string,
+    preferences: string[],
+  ) {
     const url = `${PAYTM_HOST}/data/v1/price/live?mode=${encodeURIComponent(
-      mode
+      mode,
     )}&pref=${preferences.join(",")}`;
 
     return this.fetchJson<Record<string, unknown>>(url, {
@@ -84,7 +91,7 @@ export class PaytmHttpClient {
     if (!response.ok) {
       const body = await response.text();
       throw new Error(
-        `Paytm request failed ${response.status} ${response.statusText}: ${body}`
+        `Paytm request failed ${response.status} ${response.statusText}: ${body}`,
       );
     }
 

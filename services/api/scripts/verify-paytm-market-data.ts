@@ -1,5 +1,8 @@
 import { loadOperatorEnv } from "../src/config/env";
-import { buildInstrumentKey, preferenceToRestPreference } from "../src/lib/market";
+import {
+  buildInstrumentKey,
+  preferenceToRestPreference,
+} from "../src/lib/market";
 import { PaytmHttpClient } from "../src/providers/paytmHttpClient";
 import { CatalogService } from "../src/services/catalogService";
 import { PaytmSessionService } from "../src/services/paytmSessionService";
@@ -11,7 +14,7 @@ const session = new PaytmSessionService(client, env.paths.session);
 const catalog = new CatalogService(
   client,
   env.paths.catalogSnapshot,
-  env.catalog.files
+  env.catalog.files,
 );
 
 await catalog.loadSnapshot();
@@ -52,13 +55,13 @@ console.log(
       instrumentKey: buildInstrumentKey(
         instrument.exchange,
         instrument.scripType,
-        instrument.securityId
+        instrument.securityId,
       ),
       preference,
       restPreference,
       providerResponse: quote,
     },
     null,
-    2
-  )
+    2,
+  ),
 );

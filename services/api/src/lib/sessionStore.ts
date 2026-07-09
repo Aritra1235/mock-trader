@@ -2,8 +2,9 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import type { PaytmSession } from "../types/paytm";
 
-
-export async function loadSession(filePath: string): Promise<PaytmSession | null> {
+export async function loadSession(
+  filePath: string,
+): Promise<PaytmSession | null> {
   try {
     const raw = await readFile(filePath, "utf-8");
     return JSON.parse(raw) as PaytmSession;
@@ -14,7 +15,13 @@ export async function loadSession(filePath: string): Promise<PaytmSession | null
 
 export async function saveSession(
   filePath: string,
-  tokens: Pick<PaytmSession, "access_token" | "public_access_token" | "read_access_token" | "request_token">
+  tokens: Pick<
+    PaytmSession,
+    | "access_token"
+    | "public_access_token"
+    | "read_access_token"
+    | "request_token"
+  >,
 ): Promise<PaytmSession> {
   await mkdir(dirname(filePath), { recursive: true });
   const session: PaytmSession = {

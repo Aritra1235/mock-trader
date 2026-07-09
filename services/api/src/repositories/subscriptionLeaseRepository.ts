@@ -2,9 +2,21 @@ import { createClient, type RedisClientType } from "redis";
 
 export interface SubscriptionLeaseRepository {
   ping(): Promise<boolean>;
-  addLease(subscriptionKey: string, member: string, expiresAt: number): Promise<number>;
-  refreshLeases(subscriptionKeys: string[], member: string, expiresAt: number): Promise<void>;
-  removeLease(subscriptionKey: string, member: string, now: number): Promise<number>;
+  addLease(
+    subscriptionKey: string,
+    member: string,
+    expiresAt: number,
+  ): Promise<number>;
+  refreshLeases(
+    subscriptionKeys: string[],
+    member: string,
+    expiresAt: number,
+  ): Promise<void>;
+  removeLease(
+    subscriptionKey: string,
+    member: string,
+    now: number,
+  ): Promise<number>;
   sweepExpired(now: number): Promise<string[]>;
   publishControl(message: string): Promise<void>;
   disconnect(): Promise<void>;
@@ -17,7 +29,9 @@ export interface SubscriptionLeaseOptions {
   controlChannel: string;
 }
 
-export class RedisSubscriptionLeaseRepository implements SubscriptionLeaseRepository {
+export class RedisSubscriptionLeaseRepository
+  implements SubscriptionLeaseRepository
+{
   private readonly client: RedisClientType;
 
   constructor(private readonly options: SubscriptionLeaseOptions) {
@@ -26,7 +40,7 @@ export class RedisSubscriptionLeaseRepository implements SubscriptionLeaseReposi
       database: options.database,
     });
     this.client.on("error", (error) =>
-      console.error("Redis subscription repository error", error)
+      console.error("Redis subscription repository error", error),
     );
   }
 
@@ -53,7 +67,11 @@ export class RedisSubscriptionLeaseRepository implements SubscriptionLeaseReposi
     return Number(results?.[2] ?? 0);
   }
 
-  async refreshLeases(subscriptionKeys: string[], member: string, expiresAt: number) {
+  async refreshLeases(
+    subscriptionKeys: string[],
+    member: string,
+    expiresAt: number,
+  ) {
     if (subscriptionKeys.length === 0) {
       return;
     }

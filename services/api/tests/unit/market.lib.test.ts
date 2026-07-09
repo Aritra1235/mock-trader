@@ -17,7 +17,12 @@ test("parseSecurityMaster builds searchable instruments", () => {
 
 test("aggregateCandles rolls 1m candles into larger buckets", () => {
   const first = createOrMergeCandle(null, 100, Date.UTC(2026, 0, 1, 9, 15), 10);
-  const second = createOrMergeCandle(null, 105, Date.UTC(2026, 0, 1, 9, 16), 20);
+  const second = createOrMergeCandle(
+    null,
+    105,
+    Date.UTC(2026, 0, 1, 9, 16),
+    20,
+  );
   const aggregated = aggregateCandles([first, second], 5 * 60 * 1000);
 
   expect(aggregated).toHaveLength(1);
@@ -29,6 +34,6 @@ test("aggregateCandles rolls 1m candles into larger buckets", () => {
 
 test("normalizeTimestamp applies Paytm live-data epoch offset", () => {
   expect(new Date(normalizeTimestamp(1467196176) ?? 0).toISOString()).toBe(
-    "2026-06-29T10:29:36.000Z"
+    "2026-06-29T10:29:36.000Z",
   );
 });

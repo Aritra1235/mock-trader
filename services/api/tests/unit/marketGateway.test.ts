@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
-import { MarketGateway } from "../../src/ws/marketGateway";
-import { makeCatalog, InMemoryLeases, InMemoryStore } from "../testSupport";
 import type { ServerWebSocket } from "bun";
+import { MarketGateway } from "../../src/ws/marketGateway";
+import { InMemoryLeases, InMemoryStore, makeCatalog } from "../testSupport";
 
 function createFakeSocket() {
   const messages: string[] = [];
@@ -28,7 +28,7 @@ test("gateway subscribes once and fans out quote events", async () => {
     10,
     60_000,
     60_000,
-    60_000
+    60_000,
   );
   await gateway.start();
 
@@ -39,10 +39,12 @@ test("gateway subscribes once and fans out quote events", async () => {
     JSON.stringify({
       type: "subscribe",
       symbols: [{ symbol: "RELIANCE" }],
-    })
+    }),
   );
 
-  expect(messages.some((message) => message.includes('"type":"subscribed"'))).toBeTrue();
+  expect(
+    messages.some((message) => message.includes('"type":"subscribed"')),
+  ).toBeTrue();
   expect(leases.published).toHaveLength(1);
 
   await store.publishQuoteEvent({
@@ -79,5 +81,7 @@ test("gateway subscribes once and fans out quote events", async () => {
     },
   });
 
-  expect(messages.some((message) => message.includes('"type":"quote"'))).toBeTrue();
+  expect(
+    messages.some((message) => message.includes('"type":"quote"')),
+  ).toBeTrue();
 });

@@ -7,7 +7,11 @@ import {
   normalizeQuotePayload,
 } from "../src/lib/market";
 import { loadSession } from "../src/lib/sessionStore";
-import type { CandleRecord, QuoteEvent, SubscriptionPreference } from "../src/types/market";
+import type {
+  CandleRecord,
+  QuoteEvent,
+  SubscriptionPreference,
+} from "../src/types/market";
 
 type ControlMessage = {
   action?: "subscribe" | "unsubscribe";
@@ -16,12 +20,15 @@ type ControlMessage = {
 };
 
 const env = loadIngestWorkerEnv();
-const redis = createClient({ url: env.redis.url, database: env.redis.database });
+const redis = createClient({
+  url: env.redis.url,
+  database: env.redis.database,
+});
 const subscriber = redis.duplicate();
 
 redis.on("error", (error) => console.error("Price worker redis error", error));
 subscriber.on("error", (error) =>
-  console.error("Price worker redis subscriber error", error)
+  console.error("Price worker redis subscriber error", error),
 );
 
 await redis.connect();
@@ -29,7 +36,9 @@ await subscriber.connect();
 
 const session = await loadSession(env.paths.session);
 if (!session?.public_access_token) {
-  throw new Error("Paytm public access token is required before starting price ingest");
+  throw new Error(
+    "Paytm public access token is required before starting price ingest",
+  );
 }
 
 const live = new LivePriceWebSocket();
@@ -58,7 +67,10 @@ live.setOnErrorListener((error) => {
 });
 
 live.setOnCloseListener((code, reason) => {
-  console.warn("Live price websocket closed", { code, reason: reason.toString() });
+  console.warn("Live price websocket closed", {
+    code,
+    reason: reason.toString(),
+  });
 });
 
 live.setOnMessageListener((ticks) => {
@@ -82,7 +94,8 @@ await subscriber.subscribe(env.market.redis.controlChannel, async (message) => {
     }
 
     active.set(subscriptionKey, control.subscription);
-    const keys = bySecurityId.get(control.subscription.securityId) ?? new Set<string>();
+    const keys =
+      bySecurityId.get(control.subscription.securityId) ?? new Set<string>();
     keys.add(subscriptionKey);
     bySecurityId.set(control.subscription.securityId, keys);
 
@@ -152,7 +165,9 @@ function handleTick(raw: Record<string, unknown>) {
     const quote = normalizeQuotePayload(preference, raw);
     const timestamp =
       quote.providerTs ??
-      Date.parse(quote.lastTradeTime ?? quote.lastUpdateTime ?? quote.receivedAt);
+      Date.parse(
+        quote.lastTradeTime ?? quote.lastUpdateTime ?? quote.receivedAt,
+      );
     const price = quote.lastPrice;
 
     if (price != null && Number.isFinite(timestamp)) {
@@ -160,7 +175,7 @@ function handleTick(raw: Record<string, unknown>) {
         candles.get(preference.instrumentKey) ?? null,
         price,
         timestamp,
-        quote.lastTradedQuantity
+        quote.lastTradedQuantity,
       );
       candles.set(preference.instrumentKey, candle);
       void redis
@@ -172,7 +187,7 @@ function handleTick(raw: Record<string, unknown>) {
         .zRemRangeByScore(
           `${env.market.redis.candlePrefix}:${preference.instrumentKey}`,
           0,
-          candle.bucketStart - env.market.candleRetentionMs
+          candle.bucketStart - env.market.candleRetentionMs,
         )
         .exec();
     }
@@ -188,7 +203,7 @@ function handleTick(raw: Record<string, unknown>) {
       .multi()
       .set(
         `${env.market.redis.latestQuotePrefix}:${preference.instrumentKey}`,
-        JSON.stringify(quote)
+        JSON.stringify(quote),
       )
       .publish(env.market.redis.eventsChannel, JSON.stringify(event))
       .exec();

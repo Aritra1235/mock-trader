@@ -1,10 +1,10 @@
 import { loadSession, saveSession } from "../lib/sessionStore";
-import { PaytmHttpClient } from "../providers/paytmHttpClient";
+import type { PaytmHttpClient } from "../providers/paytmHttpClient";
 
 export class PaytmSessionService {
   constructor(
     private readonly client: PaytmHttpClient,
-    private readonly sessionPath: string
+    private readonly sessionPath: string,
   ) {}
 
   getLoginUrl(state: string) {

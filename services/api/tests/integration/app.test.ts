@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { join } from "node:path";
 import { buildApp } from "../../src/app/buildApp";
 import type { AppEnv } from "../../src/config/env";
-import { PaytmHttpClient } from "../../src/providers/paytmHttpClient";
+import type { PaytmHttpClient } from "../../src/providers/paytmHttpClient";
 import { MarketDataService } from "../../src/services/marketDataService";
 import { PaytmSessionService } from "../../src/services/paytmSessionService";
 import { MarketGateway } from "../../src/ws/marketGateway";
@@ -64,14 +64,14 @@ test("app exposes health, instrument search, and quotes", async () => {
   const leases = new InMemoryLeases();
   const sessionService = new PaytmSessionService(
     {} as unknown as PaytmHttpClient,
-    "/tmp/mock-trader-session-app.json"
+    "/tmp/mock-trader-session-app.json",
   );
   const marketData = new MarketDataService(
     catalog,
     {} as unknown as PaytmHttpClient,
     sessionService,
     store,
-    60_000
+    60_000,
   );
   const gateway = new MarketGateway(
     "gateway-app",
@@ -82,7 +82,7 @@ test("app exposes health, instrument search, and quotes", async () => {
     10,
     60_000,
     60_000,
-    60_000
+    60_000,
   );
 
   await store.saveLatestQuote({
@@ -124,14 +124,16 @@ test("app exposes health, instrument search, and quotes", async () => {
     leases,
   });
 
-  const healthResponse = await app.handle(new Request("http://localhost/health"));
+  const healthResponse = await app.handle(
+    new Request("http://localhost/health"),
+  );
   const health = await healthResponse.json();
   expect(health.status).toBe("ok");
 
   const docsResponse = await app.handle(new Request("http://localhost/docs"));
   expect(docsResponse.status).toBe(302);
   const docsPageResponse = await app.handle(
-    new Request("http://localhost/docs/index.html")
+    new Request("http://localhost/docs/index.html"),
   );
   const docsPage = await docsPageResponse.text();
   expect(docsPage).toContain("https://cdn.tailwindcss.com");
@@ -144,20 +146,20 @@ test("app exposes health, instrument search, and quotes", async () => {
   expect(ready.checks.catalog).toBeTrue();
 
   expect(
-    (await app.handle(new Request("http://localhost/auth/login"))).status
+    (await app.handle(new Request("http://localhost/auth/login"))).status,
   ).toBe(404);
   expect(
-    (await app.handle(new Request("http://localhost/auth/session"))).status
+    (await app.handle(new Request("http://localhost/auth/session"))).status,
   ).toBe(404);
 
   const searchResponse = await app.handle(
-    new Request("http://localhost/v1/market/instruments/search?q=rel")
+    new Request("http://localhost/v1/market/instruments/search?q=rel"),
   );
   const search = await searchResponse.json();
   expect(search[0]?.symbol).toBe("RELIANCE");
 
   const quoteResponse = await app.handle(
-    new Request("http://localhost/v1/market/quotes?ids=RELIANCE")
+    new Request("http://localhost/v1/market/quotes?ids=RELIANCE"),
   );
   const quotes = await quoteResponse.json();
   expect(quotes.data[0]?.quote?.lastPrice).toBe(1500);

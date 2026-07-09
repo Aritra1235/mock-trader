@@ -6,7 +6,7 @@ const token =
 
 if (!token) {
   throw new Error(
-    "Pass a request token as an argument or set PAYTM_REQUEST_TOKEN."
+    "Pass a request token as an argument or set PAYTM_REQUEST_TOKEN.",
   );
 }
 
@@ -20,6 +20,6 @@ console.log(
       hasReadToken: Boolean(session.read_access_token),
     },
     null,
-    2
-  )
+    2,
+  ),
 );

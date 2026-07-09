@@ -5,16 +5,20 @@ export interface MarketDataStore {
   ping(): Promise<boolean>;
   saveLatestQuote(quote: QuotePayload): Promise<void>;
   getLatestQuote(instrumentKey: string): Promise<QuotePayload | null>;
-  getLatestQuotes(instrumentKeys: string[]): Promise<Record<string, QuotePayload>>;
+  getLatestQuotes(
+    instrumentKeys: string[],
+  ): Promise<Record<string, QuotePayload>>;
   saveCandle(instrumentKey: string, candle: CandleRecord): Promise<void>;
   listCandles(
     instrumentKey: string,
     fromMs: number,
     toMs: number,
-    limit: number
+    limit: number,
   ): Promise<CandleRecord[]>;
   publishQuoteEvent(event: QuoteEvent): Promise<void>;
-  subscribeToQuoteEvents(handler: (event: QuoteEvent) => void | Promise<void>): Promise<void>;
+  subscribeToQuoteEvents(
+    handler: (event: QuoteEvent) => void | Promise<void>,
+  ): Promise<void>;
   disconnect(): Promise<void>;
 }
 
@@ -38,10 +42,10 @@ export class RedisMarketDataStore implements MarketDataStore {
     });
     this.subscriberClient = this.commandClient.duplicate();
     this.commandClient.on("error", (error) =>
-      console.error("Redis market store error", error)
+      console.error("Redis market store error", error),
     );
     this.subscriberClient.on("error", (error) =>
-      console.error("Redis market subscriber error", error)
+      console.error("Redis market subscriber error", error),
     );
   }
 
@@ -61,12 +65,14 @@ export class RedisMarketDataStore implements MarketDataStore {
   async saveLatestQuote(quote: QuotePayload) {
     await this.commandClient.set(
       this.latestQuoteKey(quote.instrumentKey),
-      JSON.stringify(quote)
+      JSON.stringify(quote),
     );
   }
 
   async getLatestQuote(instrumentKey: string) {
-    const raw = await this.commandClient.get(this.latestQuoteKey(instrumentKey));
+    const raw = await this.commandClient.get(
+      this.latestQuoteKey(instrumentKey),
+    );
     return raw ? (JSON.parse(raw) as QuotePayload) : null;
   }
 
@@ -76,14 +82,14 @@ export class RedisMarketDataStore implements MarketDataStore {
     }
 
     const values = await this.commandClient.mGet(
-      instrumentKeys.map((key) => this.latestQuoteKey(key))
+      instrumentKeys.map((key) => this.latestQuoteKey(key)),
     );
 
     return Object.fromEntries(
       instrumentKeys.flatMap((key, index) => {
         const value = values[index];
         return value ? [[key, JSON.parse(value) as QuotePayload]] : [];
-      })
+      }),
     );
   }
 
@@ -101,7 +107,12 @@ export class RedisMarketDataStore implements MarketDataStore {
       .exec();
   }
 
-  async listCandles(instrumentKey: string, fromMs: number, toMs: number, limit: number) {
+  async listCandles(
+    instrumentKey: string,
+    fromMs: number,
+    toMs: number,
+    limit: number,
+  ) {
     const values = await this.commandClient.zRangeByScore(
       this.candleKey(instrumentKey),
       fromMs,
@@ -111,7 +122,7 @@ export class RedisMarketDataStore implements MarketDataStore {
           offset: 0,
           count: limit,
         },
-      }
+      },
     );
 
     return values.map((value) => JSON.parse(value) as CandleRecord);
@@ -121,15 +132,23 @@ export class RedisMarketDataStore implements MarketDataStore {
     const payload = JSON.stringify(event);
     await this.commandClient
       .multi()
-      .set(this.latestQuoteKey(event.instrumentKey), JSON.stringify(event.quote))
+      .set(
+        this.latestQuoteKey(event.instrumentKey),
+        JSON.stringify(event.quote),
+      )
       .publish(this.options.quoteEventsChannel, payload)
       .exec();
   }
 
-  async subscribeToQuoteEvents(handler: (event: QuoteEvent) => void | Promise<void>) {
-    await this.subscriberClient.subscribe(this.options.quoteEventsChannel, async (message) => {
-      await handler(JSON.parse(message) as QuoteEvent);
-    });
+  async subscribeToQuoteEvents(
+    handler: (event: QuoteEvent) => void | Promise<void>,
+  ) {
+    await this.subscriberClient.subscribe(
+      this.options.quoteEventsChannel,
+      async (message) => {
+        await handler(JSON.parse(message) as QuoteEvent);
+      },
+    );
   }
 
   async disconnect() {

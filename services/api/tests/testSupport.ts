@@ -1,23 +1,27 @@
-import { CatalogService } from "../src/services/catalogService";
-import { PaytmHttpClient } from "../src/providers/paytmHttpClient";
+import type { PaytmHttpClient } from "../src/providers/paytmHttpClient";
 import type { MarketDataStore } from "../src/repositories/marketDataStore";
+import type { SubscriptionLeaseRepository } from "../src/repositories/subscriptionLeaseRepository";
+import { CatalogService } from "../src/services/catalogService";
 import type {
   CandleRecord,
   QuoteEvent,
   QuotePayload,
 } from "../src/types/market";
-import type { SubscriptionLeaseRepository } from "../src/repositories/subscriptionLeaseRepository";
 
 export const sampleSecurityMaster = `"security_id","symbol","name","series","tick_size","lot_size","instrument_type","segment","exchange","upper_limit","lower_limit","expiry_date","strike_price","freeze_quantity"
 "3456","RELIANCE","Reliance Industries","","0.0500","1","EQ","C","NSE","2000.0000","1000.0000","","",""
 "13","NIFTY50","Nifty 50","","0.0500","1","INDEX","I","NSE","","","","",""`;
 
-export async function makeCatalog(snapshotPath = "/tmp/mock-trader-catalog-test.json") {
+export async function makeCatalog(
+  snapshotPath = "/tmp/mock-trader-catalog-test.json",
+) {
   const client = {
     fetchSecurityMaster: async () => sampleSecurityMaster,
   } as unknown as PaytmHttpClient;
 
-  const catalog = new CatalogService(client, snapshotPath, ["security_master.csv"]);
+  const catalog = new CatalogService(client, snapshotPath, [
+    "security_master.csv",
+  ]);
   await catalog.syncFromProvider();
   return catalog;
 }
@@ -44,13 +48,15 @@ export class InMemoryStore implements MarketDataStore {
       instrumentKeys.flatMap((key) => {
         const quote = this.latest.get(key);
         return quote ? [[key, quote]] : [];
-      })
+      }),
     );
   }
 
   async saveCandle(instrumentKey: string, candle: CandleRecord) {
     const bucket = this.candles.get(instrumentKey) ?? [];
-    const existingIndex = bucket.findIndex((entry) => entry.bucketStart === candle.bucketStart);
+    const existingIndex = bucket.findIndex(
+      (entry) => entry.bucketStart === candle.bucketStart,
+    );
     if (existingIndex >= 0) {
       bucket[existingIndex] = candle;
     } else {
@@ -60,9 +66,16 @@ export class InMemoryStore implements MarketDataStore {
     this.candles.set(instrumentKey, bucket);
   }
 
-  async listCandles(instrumentKey: string, fromMs: number, toMs: number, limit: number) {
+  async listCandles(
+    instrumentKey: string,
+    fromMs: number,
+    toMs: number,
+    limit: number,
+  ) {
     return (this.candles.get(instrumentKey) ?? [])
-      .filter((candle) => candle.bucketStart >= fromMs && candle.bucketStart <= toMs)
+      .filter(
+        (candle) => candle.bucketStart >= fromMs && candle.bucketStart <= toMs,
+      )
       .slice(0, limit);
   }
 
@@ -73,7 +86,9 @@ export class InMemoryStore implements MarketDataStore {
     }
   }
 
-  async subscribeToQuoteEvents(handler: (event: QuoteEvent) => void | Promise<void>) {
+  async subscribeToQuoteEvents(
+    handler: (event: QuoteEvent) => void | Promise<void>,
+  ) {
     this.handler = handler;
   }
 
@@ -89,13 +104,18 @@ export class InMemoryLeases implements SubscriptionLeaseRepository {
   }
 
   async addLease(subscriptionKey: string, member: string, expiresAt: number) {
-    const bucket = this.leases.get(subscriptionKey) ?? new Map<string, number>();
+    const bucket =
+      this.leases.get(subscriptionKey) ?? new Map<string, number>();
     bucket.set(member, expiresAt);
     this.leases.set(subscriptionKey, bucket);
     return bucket.size;
   }
 
-  async refreshLeases(subscriptionKeys: string[], member: string, expiresAt: number) {
+  async refreshLeases(
+    subscriptionKeys: string[],
+    member: string,
+    expiresAt: number,
+  ) {
     for (const key of subscriptionKeys) {
       const bucket = this.leases.get(key);
       if (bucket?.has(member)) {
@@ -105,7 +125,8 @@ export class InMemoryLeases implements SubscriptionLeaseRepository {
   }
 
   async removeLease(subscriptionKey: string, member: string) {
-    const bucket = this.leases.get(subscriptionKey) ?? new Map<string, number>();
+    const bucket =
+      this.leases.get(subscriptionKey) ?? new Map<string, number>();
     bucket.delete(member);
     if (bucket.size === 0) {
       this.leases.delete(subscriptionKey);

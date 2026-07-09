@@ -4,6 +4,8 @@ import {
   normalizeQuotePayload,
   preferenceToRestPreference,
 } from "../lib/market";
+import type { PaytmHttpClient } from "../providers/paytmHttpClient";
+import type { MarketDataStore } from "../repositories/marketDataStore";
 import type {
   InstrumentRecord,
   MarketMode,
@@ -11,10 +13,8 @@ import type {
   QuotePayload,
   SubscriptionPreference,
 } from "../types/market";
-import { CatalogService } from "./catalogService";
-import { PaytmHttpClient } from "../providers/paytmHttpClient";
-import { PaytmSessionService } from "./paytmSessionService";
-import type { MarketDataStore } from "../repositories/marketDataStore";
+import type { CatalogService } from "./catalogService";
+import type { PaytmSessionService } from "./paytmSessionService";
 
 export class MarketDataService {
   constructor(
@@ -22,17 +22,17 @@ export class MarketDataService {
     private readonly paytmClient: PaytmHttpClient,
     private readonly sessionService: PaytmSessionService,
     private readonly store: MarketDataStore,
-    private readonly quoteStaleMs: number
+    private readonly quoteStaleMs: number,
   ) {}
 
   async getQuotes(ids: string[], mode: MarketMode) {
     const instruments = uniqueInstruments(ids, this.catalog);
     const latest = await this.store.getLatestQuotes(
-      instruments.map((instrument) => instrument.instrumentKey)
+      instruments.map((instrument) => instrument.instrumentKey),
     );
 
     const stale = instruments.filter((instrument) =>
-      isQuoteStale(latest[instrument.instrumentKey], this.quoteStaleMs)
+      isQuoteStale(latest[instrument.instrumentKey], this.quoteStaleMs),
     );
 
     if (stale.length > 0) {
@@ -43,7 +43,7 @@ export class MarketDataService {
           exchangeType: instrument.exchange,
           scripType: instrument.scripType,
           modeType: mode,
-        }))
+        })),
       );
 
       for (const quote of refreshed) {
@@ -58,7 +58,13 @@ export class MarketDataService {
     }));
   }
 
-  async listCandles(id: string, interval: string, fromMs: number, toMs: number, limit: number) {
+  async listCandles(
+    id: string,
+    interval: string,
+    fromMs: number,
+    toMs: number,
+    limit: number,
+  ) {
     const instrument = this.catalog.resolve(id);
     if (!instrument) {
       return null;
@@ -68,7 +74,7 @@ export class MarketDataService {
       instrument.instrumentKey,
       fromMs,
       toMs,
-      limit
+      limit,
     );
 
     return {
@@ -94,7 +100,7 @@ export class MarketDataService {
     const response = await this.paytmClient.fetchLiveMarketData(
       token,
       preferences[0].modeType,
-      preferences.map(preferenceToRestPreference)
+      preferences.map(preferenceToRestPreference),
     );
 
     const payload = Array.isArray(response.data) ? response.data : [];
@@ -107,7 +113,9 @@ export class MarketDataService {
 
       const raw = tick as Record<string, unknown>;
       const securityId = String(raw.security_id ?? "");
-      const preference = preferences.find((item) => item.securityId === securityId);
+      const preference = preferences.find(
+        (item) => item.securityId === securityId,
+      );
       if (!preference) {
         continue;
       }
