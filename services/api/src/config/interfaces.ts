@@ -94,3 +94,12 @@ export interface CatalogWorkerEnv {
   catalog: CatalogConfig;
   paytm: PaytmConfig;
 }
+
+export interface AuthEnv {
+  google: GoogleOAuthConfig;
+}
+
+export interface GoogleOAuthConfig {
+  clientId: string;
+  clientSecret: string;
+}

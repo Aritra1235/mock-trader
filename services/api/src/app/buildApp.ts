@@ -14,7 +14,6 @@ import type { PaytmSessionService } from "../services/paytmSessionService";
 import type { MarketGateway } from "../ws/marketGateway";
 import { apiVersion } from "../config/const";
 
-
 export interface AppDependencies {
   env: AppEnv;
   catalog: CatalogService;
@@ -103,14 +102,17 @@ export function buildApp(deps: AppDependencies) {
           typeof query.scripType === "string" ? query.scripType : undefined,
       }),
     )
-    .get(`/api/${apiVersion}/market/instruments/:id`, async ({ params, set }) => {
-      const instrument = deps.catalog.resolve(params.id);
-      if (!instrument) {
-        set.status = 404;
-        return { error: "instrument not found" };
-      }
-      return instrument;
-    })
+    .get(
+      `/api/${apiVersion}/market/instruments/:id`,
+      async ({ params, set }) => {
+        const instrument = deps.catalog.resolve(params.id);
+        if (!instrument) {
+          set.status = 404;
+          return { error: "instrument not found" };
+        }
+        return instrument;
+      },
+    )
     .get(`/api/${apiVersion}/market/quotes`, async ({ query, set }) => {
       const ids =
         typeof query.ids === "string"
@@ -134,39 +136,42 @@ export function buildApp(deps: AppDependencies) {
         data: await deps.marketData.getQuotes(ids, mode),
       };
     })
-    .get(`/api/${apiVersion}/market/candles/:id`, async ({ params, query, set }) => {
-      const fromMs =
-        typeof query.from === "string"
-          ? Date.parse(query.from)
-          : Date.now() - 6 * 60 * 60 * 1000;
-      const toMs =
-        typeof query.to === "string" ? Date.parse(query.to) : Date.now();
-      const interval =
-        typeof query.interval === "string" && query.interval.trim()
-          ? query.interval.trim()
-          : "1m";
-      const limit =
-        typeof query.limit === "string" ? Number(query.limit) : 1000;
+    .get(
+      `/api/${apiVersion}/market/candles/:id`,
+      async ({ params, query, set }) => {
+        const fromMs =
+          typeof query.from === "string"
+            ? Date.parse(query.from)
+            : Date.now() - 6 * 60 * 60 * 1000;
+        const toMs =
+          typeof query.to === "string" ? Date.parse(query.to) : Date.now();
+        const interval =
+          typeof query.interval === "string" && query.interval.trim()
+            ? query.interval.trim()
+            : "1m";
+        const limit =
+          typeof query.limit === "string" ? Number(query.limit) : 1000;
 
-      const result = await deps.marketData.listCandles(
-        params.id,
-        interval,
-        Number.isNaN(fromMs) ? Date.now() - 6 * 60 * 60 * 1000 : fromMs,
-        Number.isNaN(toMs) ? Date.now() : toMs,
-        Number.isFinite(limit) ? limit : 1000,
-      );
+        const result = await deps.marketData.listCandles(
+          params.id,
+          interval,
+          Number.isNaN(fromMs) ? Date.now() - 6 * 60 * 60 * 1000 : fromMs,
+          Number.isNaN(toMs) ? Date.now() : toMs,
+          Number.isFinite(limit) ? limit : 1000,
+        );
 
-      if (!result) {
-        set.status = 404;
-        return { error: "instrument not found" };
-      }
+        if (!result) {
+          set.status = 404;
+          return { error: "instrument not found" };
+        }
 
-      return {
-        instrument: result.instrument,
-        interval,
-        candles: result.candles,
-      };
-    })
+        return {
+          instrument: result.instrument,
+          interval,
+          candles: result.candles,
+        };
+      },
+    )
     .get(`/api/${apiVersion}/market/provider/chart`, async ({ query, set }) => {
       const params = Object.fromEntries(
         Object.entries(query).flatMap(([key, value]) =>

@@ -12,9 +12,11 @@ import type {
   PaytmConfig,
   RedisConfig,
   RuntimeEnv,
+  AuthEnv,
   ServiceConfig,
   SubscriptionConfig,
   WebSocketConfig,
+  GoogleOAuthConfig,
 } from "./interfaces";
 
 dotenv.config();
@@ -139,6 +141,13 @@ function loadPaytmConfig(): PaytmConfig {
   };
 }
 
+function loadGoogleOAuthConfig(): GoogleOAuthConfig {
+  return {
+    clientId: required("GOOGLE_CLIENT_ID"),
+    clientSecret: required("GOOGLE_CLIENT_SECRET"),
+  };
+}
+
 export function loadRuntimeEnv(): RuntimeEnv {
   return {
     service: loadServiceConfig(),
@@ -202,6 +211,12 @@ export function loadCatalogWorkerEnv(): CatalogWorkerEnv {
 
 export function loadDatabaseEnv(): DBConfig {
   return loadDbConfig();
+}
+
+export function loadAuthEnv(): AuthEnv {
+  return {
+    google: loadGoogleOAuthConfig(),
+  };
 }
 
 export const loadEnv = loadRuntimeEnv;
