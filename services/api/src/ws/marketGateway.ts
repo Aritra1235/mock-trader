@@ -1,10 +1,13 @@
 import { Buffer } from "node:buffer";
-import type { ServerWebSocket } from "bun";
 import { buildSubscriptionKey, normalizeMode } from "../lib/market";
-import type { MarketMode, QuoteEvent, SubscriptionPreference } from "../types/market";
-import { CatalogService } from "../services/catalogService";
-import type { SubscriptionLeaseRepository } from "../repositories/subscriptionLeaseRepository";
 import type { MarketDataStore } from "../repositories/marketDataStore";
+import type { SubscriptionLeaseRepository } from "../repositories/subscriptionLeaseRepository";
+import type { CatalogService } from "../services/catalogService";
+import type {
+  MarketMode,
+  QuoteEvent,
+  SubscriptionPreference,
+} from "../types/market";
 
 type SocketState = {
   id: string;
@@ -17,10 +20,14 @@ type ClientMessage = {
   modeType?: unknown;
 };
 
+type GatewaySocket = {
+  send(payload: string): unknown;
+};
+
 export class MarketGateway {
-  private readonly states = new WeakMap<ServerWebSocket<unknown>, SocketState>();
-  private readonly sockets = new Set<ServerWebSocket<unknown>>();
-  private readonly instrumentSubscribers = new Map<string, Set<ServerWebSocket<unknown>>>();
+  private readonly states = new WeakMap<GatewaySocket, SocketState>();
+  private readonly sockets = new Set<GatewaySocket>();
+  private readonly instrumentSubscribers = new Map<string, Set<GatewaySocket>>();
   private heartbeatTimer: Timer | null = null;
   private sweepTimer: Timer | null = null;
 
@@ -33,7 +40,7 @@ export class MarketGateway {
     private readonly maxSubscriptions: number,
     private readonly leaseMs: number,
     private readonly heartbeatMs: number,
-    private readonly sweepMs: number
+    private readonly sweepMs: number,
   ) {}
 
   async start() {
@@ -61,7 +68,7 @@ export class MarketGateway {
     }
   }
 
-  open(ws: ServerWebSocket<unknown>) {
+  open(ws: GatewaySocket) {
     this.sockets.add(ws);
     this.states.set(ws, {
       id: crypto.randomUUID(),
@@ -74,14 +81,16 @@ export class MarketGateway {
         gatewayId: this.gatewayId,
         upstreamMode: this.defaultMode,
         maxSubscriptions: this.maxSubscriptions,
-      })
+      }),
     );
   }
 
-  async message(ws: ServerWebSocket<unknown>, message: unknown) {
+  async message(ws: GatewaySocket, message: unknown) {
     const text = toTextMessage(message);
     if (!text) {
-      ws.send(JSON.stringify({ type: "error", message: "Unsupported payload" }));
+      ws.send(
+        JSON.stringify({ type: "error", message: "Unsupported payload" }),
+      );
       return;
     }
 
@@ -111,7 +120,7 @@ export class MarketGateway {
     ws.send(JSON.stringify({ type: "error", message: "Unknown message type" }));
   }
 
-  async close(ws: ServerWebSocket<unknown>) {
+  async close(ws: GatewaySocket) {
     const state = this.states.get(ws);
     this.sockets.delete(ws);
     if (!state) {
@@ -123,7 +132,7 @@ export class MarketGateway {
       const remaining = await this.leases.removeLease(
         subscriptionKey,
         this.memberKey(state.id),
-        now
+        now,
       );
       this.instrumentSubscribers.get(preference.instrumentKey)?.delete(ws);
       if (remaining === 0) {
@@ -133,9 +142,9 @@ export class MarketGateway {
   }
 
   private async subscribe(
-    ws: ServerWebSocket<unknown>,
+    ws: GatewaySocket,
     symbols: unknown,
-    modeInput: unknown
+    modeInput: unknown,
   ) {
     const state = this.states.get(ws);
     if (!state) {
@@ -145,7 +154,9 @@ export class MarketGateway {
     const mode = normalizeMode(modeInput, this.defaultMode);
     const preferences = normalizePreferences(symbols, this.catalog, mode);
     if (preferences.length === 0) {
-      ws.send(JSON.stringify({ type: "error", message: "No valid symbols supplied" }));
+      ws.send(
+        JSON.stringify({ type: "error", message: "No valid symbols supplied" }),
+      );
       return;
     }
 
@@ -154,7 +165,7 @@ export class MarketGateway {
         JSON.stringify({
           type: "error",
           message: `Subscription limit exceeded (${this.maxSubscriptions})`,
-        })
+        }),
       );
       return;
     }
@@ -172,13 +183,13 @@ export class MarketGateway {
       const activeCount = await this.leases.addLease(
         subscriptionKey,
         this.memberKey(state.id),
-        expiresAt
+        expiresAt,
       );
 
       state.subscriptions.set(subscriptionKey, preference);
       const bucket =
         this.instrumentSubscribers.get(preference.instrumentKey) ??
-        new Set<ServerWebSocket<unknown>>();
+        new Set<GatewaySocket>();
       bucket.add(ws);
       this.instrumentSubscribers.set(preference.instrumentKey, bucket);
       subscribed.push(preference);
@@ -193,19 +204,25 @@ export class MarketGateway {
         type: "subscribed",
         count: subscribed.length,
         symbols: subscribed,
-      })
+      }),
     );
   }
 
-  private async unsubscribe(ws: ServerWebSocket<unknown>, symbols: unknown) {
+  private async unsubscribe(ws: GatewaySocket, symbols: unknown) {
     const state = this.states.get(ws);
     if (!state) {
       return;
     }
 
-    const preferences = normalizePreferences(symbols, this.catalog, this.defaultMode);
+    const preferences = normalizePreferences(
+      symbols,
+      this.catalog,
+      this.defaultMode,
+    );
     if (preferences.length === 0) {
-      ws.send(JSON.stringify({ type: "error", message: "No valid symbols supplied" }));
+      ws.send(
+        JSON.stringify({ type: "error", message: "No valid symbols supplied" }),
+      );
       return;
     }
 
@@ -221,7 +238,7 @@ export class MarketGateway {
       const remaining = await this.leases.removeLease(
         subscriptionKey,
         this.memberKey(state.id),
-        now
+        now,
       );
 
       state.subscriptions.delete(subscriptionKey);
@@ -238,7 +255,7 @@ export class MarketGateway {
         type: "unsubscribed",
         count: removed.length,
         symbols: removed,
-      })
+      }),
     );
   }
 
@@ -252,7 +269,7 @@ export class MarketGateway {
       await this.leases.refreshLeases(
         Array.from(state.subscriptions.keys()),
         this.memberKey(state.id),
-        expiresAt
+        expiresAt,
       );
     }
   }
@@ -260,7 +277,11 @@ export class MarketGateway {
   private async sweepExpiredLeases() {
     const expiredKeys = await this.leases.sweepExpired(Date.now());
     for (const subscriptionKey of expiredKeys) {
-      const preference = findPreference(subscriptionKey, this.states, this.sockets);
+      const preference = findPreference(
+        subscriptionKey,
+        this.states,
+        this.sockets,
+      );
       if (preference) {
         await this.publishControl("unsubscribe", subscriptionKey, preference);
       }
@@ -286,7 +307,7 @@ export class MarketGateway {
   private async publishControl(
     action: "subscribe" | "unsubscribe",
     subscriptionKey: string,
-    preference: SubscriptionPreference
+    preference: SubscriptionPreference,
   ) {
     await this.leases.publishControl(
       JSON.stringify({
@@ -295,7 +316,7 @@ export class MarketGateway {
         subscription: preference,
         source: this.gatewayId,
         timestamp: Date.now(),
-      })
+      }),
     );
   }
 
@@ -307,7 +328,7 @@ export class MarketGateway {
 function normalizePreferences(
   input: unknown,
   catalog: CatalogService,
-  mode: MarketMode
+  mode: MarketMode,
 ) {
   if (!Array.isArray(input)) {
     return [];
@@ -321,7 +342,7 @@ function normalizePreferences(
     }
     const preference = catalog.resolvePreference(
       entry as Record<string, unknown>,
-      mode
+      mode,
     );
     if (!preference) {
       continue;
@@ -350,8 +371,8 @@ function toTextMessage(message: unknown) {
 
 function findPreference(
   subscriptionKey: string,
-  states: WeakMap<ServerWebSocket<unknown>, SocketState>,
-  sockets: Set<ServerWebSocket<unknown>>
+  states: WeakMap<GatewaySocket, SocketState>,
+  sockets: Set<GatewaySocket>,
 ) {
   for (const socket of sockets) {
     const state = states.get(socket);

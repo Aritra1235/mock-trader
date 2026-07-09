@@ -1,16 +1,17 @@
-import { Elysia } from "elysia";
 import { openapi } from "@elysia/openapi";
 import { opentelemetry } from "@elysia/opentelemetry";
-import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-node";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
+import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-node";
+import { type Context, Elysia } from "elysia";
 import type { AppEnv } from "../config/env";
-import { readDocsFile } from "../routes/docs";
-import { CatalogService } from "../services/catalogService";
-import { MarketDataService } from "../services/marketDataService";
-import { PaytmSessionService } from "../services/paytmSessionService";
-import { MarketGateway } from "../ws/marketGateway";
+import { auth } from "../lib/auth";
 import type { MarketDataStore } from "../repositories/marketDataStore";
 import type { SubscriptionLeaseRepository } from "../repositories/subscriptionLeaseRepository";
+import { readDocsFile } from "../routes/docs";
+import type { CatalogService } from "../services/catalogService";
+import type { MarketDataService } from "../services/marketDataService";
+import type { PaytmSessionService } from "../services/paytmSessionService";
+import type { MarketGateway } from "../ws/marketGateway";
 
 export interface AppDependencies {
   env: AppEnv;
@@ -22,6 +23,16 @@ export interface AppDependencies {
   leases: SubscriptionLeaseRepository;
 }
 
+const betterAuthView = (context: Context) => {
+  const BETTER_AUTH_ACCEPT_METHODS = ["POST", "GET"];
+  // validate request method
+  if (BETTER_AUTH_ACCEPT_METHODS.includes(context.request.method)) {
+    return auth.handler(context.request);
+  }
+
+  return context.status(405, "Method not allowed");
+};
+
 export function buildApp(deps: AppDependencies) {
   return new Elysia()
     .use(openapi())
@@ -30,6 +41,8 @@ export function buildApp(deps: AppDependencies) {
         spanProcessors: [new BatchSpanProcessor(new OTLPTraceExporter())],
       }),
     )
+
+    .all("/api/auth/*", betterAuthView)
 
     .get("/", async () => ({
       service: deps.env.service.name,
