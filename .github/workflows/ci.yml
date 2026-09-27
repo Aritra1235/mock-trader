@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17.5
+        env:
+          POSTGRES_DB: mock_trader
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:8.2.0-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/mock_trader
+      REDIS_URL: redis://127.0.0.1:6379
+      REDIS_DATABASE: "2"
+      PAYTM_API_KEY: ci-placeholder
+      PAYTM_SECRET_KEY: ci-placeholder
+      GOOGLE_CLIENT_ID: ci-placeholder
+      GOOGLE_CLIENT_SECRET: ci-placeholder
+      BETTER_AUTH_URL: http://localhost:3000
+      BETTER_AUTH_SECRET: ci-only-secret-that-is-longer-than-thirty-two-characters
+      APP_ORIGINS: http://localhost:3001
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - name: Install API dependencies
+        working-directory: services/api
+        run: bun install --frozen-lockfile
+      - name: Migrate clean database
+        working-directory: services/api
+        run: bun run db:migrate
+      - name: Verify API
+        working-directory: services/api
+        run: |
+          bun run test
+          RUN_DATABASE_TESTS=1 bun test tests/integration/database-trading.test.ts
+          bun run typecheck
+          bun run lint
+          bun run db:check
+      - name: Generate frontend contract
+        working-directory: services/api
+        run: bun run client:generate
+      - name: Verify generated contract is committed
+        run: git diff --exit-code -- services/api/openapi.json services/next-web/src/generated/api-schema.ts
+      - name: Install frontend dependencies
+        working-directory: services/next-web
+        run: bun install --frozen-lockfile
+      - name: Verify frontend handoff
+        working-directory: services/next-web
+        run: |
+          bun run lint
+          bun run build
