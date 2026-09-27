@@ -47,6 +47,14 @@ test("gateway subscribes once and fans out quote events", async () => {
   ).toBeTrue();
   expect(leases.published).toHaveLength(1);
 
+  const fullClient = createFakeSocket();
+  gateway.open(fullClient.socket);
+  await gateway.message(fullClient.socket, {
+    type: "subscribe",
+    modeType: "FULL",
+    symbols: [{ symbol: "RELIANCE" }],
+  });
+
   await store.publishQuoteEvent({
     type: "quote",
     instrumentKey: "NSE:EQUITY:3456",
@@ -84,4 +92,137 @@ test("gateway subscribes once and fans out quote events", async () => {
   expect(
     messages.some((message) => message.includes('"type":"quote"')),
   ).toBeTrue();
+  expect(
+    fullClient.messages.some((message) => message.includes('"type":"quote"')),
+  ).toBeFalse();
+});
+
+test("gateway unsubscribes using the requested market mode", async () => {
+  const catalog = await makeCatalog(
+    "/tmp/mock-trader-catalog-gateway-unsubscribe.json",
+  );
+  const leases = new InMemoryLeases();
+  const store = new InMemoryStore();
+  const gateway = new MarketGateway(
+    "gateway-test",
+    catalog,
+    leases,
+    store,
+    "QUOTE",
+    10,
+    60_000,
+    60_000,
+    60_000,
+  );
+  await gateway.start();
+
+  const { socket, messages } = createFakeSocket();
+  gateway.open(socket);
+  await gateway.message(
+    socket,
+    JSON.stringify({
+      type: "subscribe",
+      modeType: "FULL",
+      symbols: [{ symbol: "RELIANCE" }],
+    }),
+  );
+  await gateway.message(
+    socket,
+    JSON.stringify({
+      type: "unsubscribe",
+      modeType: "FULL",
+      symbols: [{ symbol: "RELIANCE" }],
+    }),
+  );
+
+  const acknowledgement = messages.find((message) =>
+    message.includes('"type":"unsubscribed"'),
+  );
+  expect(acknowledgement).toContain('"count":1');
+  expect(leases.published).toHaveLength(2);
+});
+
+test("gateway accepts JSON objects parsed by the Elysia websocket layer", async () => {
+  const catalog = await makeCatalog(
+    "/tmp/mock-trader-catalog-gateway-parsed-message.json",
+  );
+  const leases = new InMemoryLeases();
+  const store = new InMemoryStore();
+  const gateway = new MarketGateway(
+    "gateway-test",
+    catalog,
+    leases,
+    store,
+    "QUOTE",
+    10,
+    60_000,
+    60_000,
+    60_000,
+  );
+  await gateway.start();
+
+  const { socket, messages } = createFakeSocket();
+  gateway.open(socket);
+  await gateway.message(socket, { type: "ping" });
+  await gateway.message(socket, {
+    type: "subscribe",
+    modeType: "QUOTE",
+    symbols: [{ symbol: "RELIANCE" }],
+  });
+
+  expect(
+    messages.some((message) => message.includes('"type":"pong"')),
+  ).toBeTrue();
+  expect(
+    messages.some((message) => message.includes('"type":"subscribed"')),
+  ).toBeTrue();
+});
+
+test("gateway keeps connection state across Elysia websocket wrappers", async () => {
+  const catalog = await makeCatalog(
+    "/tmp/mock-trader-catalog-gateway-wrapper-identity.json",
+  );
+  const leases = new InMemoryLeases();
+  const store = new InMemoryStore();
+  const gateway = new MarketGateway(
+    "gateway-test",
+    catalog,
+    leases,
+    store,
+    "QUOTE",
+    10,
+    60_000,
+    60_000,
+    60_000,
+  );
+  await gateway.start();
+
+  const raw = {};
+  const openMessages: string[] = [];
+  const messageMessages: string[] = [];
+  const openSocket = {
+    raw,
+    send(payload: string) {
+      openMessages.push(payload);
+    },
+  };
+  const messageSocket = {
+    raw,
+    send(payload: string) {
+      messageMessages.push(payload);
+    },
+  };
+
+  gateway.open(openSocket);
+  await gateway.message(messageSocket, {
+    type: "subscribe",
+    modeType: "QUOTE",
+    symbols: [{ symbol: "RELIANCE" }],
+  });
+
+  expect(openMessages[0]).toContain('"type":"connected"');
+  expect(
+    messageMessages.some((message) => message.includes('"type":"subscribed"')),
+  ).toBeTrue();
+  expect(leases.published).toHaveLength(1);
 });

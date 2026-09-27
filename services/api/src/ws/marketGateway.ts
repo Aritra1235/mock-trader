@@ -12,22 +12,32 @@ import type {
 type SocketState = {
   id: string;
   subscriptions: Map<string, SubscriptionPreference>;
+  messageWindowStartedAt: number;
+  messagesInWindow: number;
 };
 
 type ClientMessage = {
   type?: string;
   symbols?: unknown;
   modeType?: unknown;
+  requestId?: unknown;
 };
 
 type GatewaySocket = {
+  raw?: object;
   send(payload: string): unknown;
 };
 
+type SocketIdentity = object;
+
 export class MarketGateway {
-  private readonly states = new WeakMap<GatewaySocket, SocketState>();
-  private readonly sockets = new Set<GatewaySocket>();
-  private readonly instrumentSubscribers = new Map<string, Set<GatewaySocket>>();
+  private readonly states = new WeakMap<SocketIdentity, SocketState>();
+  private readonly sockets = new Set<SocketIdentity>();
+  private readonly socketHandles = new Map<SocketIdentity, GatewaySocket>();
+  private readonly subscriptionSubscribers = new Map<
+    string,
+    Set<SocketIdentity>
+  >();
   private heartbeatTimer: Timer | null = null;
   private sweepTimer: Timer | null = null;
 
@@ -69,10 +79,14 @@ export class MarketGateway {
   }
 
   open(ws: GatewaySocket) {
-    this.sockets.add(ws);
-    this.states.set(ws, {
+    const identity = socketIdentity(ws);
+    this.sockets.add(identity);
+    this.socketHandles.set(identity, ws);
+    this.states.set(identity, {
       id: crypto.randomUUID(),
       subscriptions: new Map(),
+      messageWindowStartedAt: Date.now(),
+      messagesInWindow: 0,
     });
 
     ws.send(
@@ -86,43 +100,83 @@ export class MarketGateway {
   }
 
   async message(ws: GatewaySocket, message: unknown) {
-    const text = toTextMessage(message);
-    if (!text) {
-      ws.send(
-        JSON.stringify({ type: "error", message: "Unsupported payload" }),
-      );
+    const identity = socketIdentity(ws);
+    this.socketHandles.set(identity, ws);
+    const state = this.states.get(identity);
+    if (!state) {
+      return;
+    }
+    const now = Date.now();
+    if (now - state.messageWindowStartedAt >= 1_000) {
+      state.messageWindowStartedAt = now;
+      state.messagesInWindow = 0;
+    }
+    state.messagesInWindow += 1;
+    if (state.messagesInWindow > 30) {
+      sendError(ws, "MESSAGE_RATE_EXCEEDED", "Too many messages.");
       return;
     }
 
     let payload: ClientMessage;
-    try {
-      payload = JSON.parse(text) as ClientMessage;
-    } catch {
-      ws.send(JSON.stringify({ type: "error", message: "Invalid JSON" }));
-      return;
+    if (isClientMessage(message)) {
+      payload = message;
+    } else {
+      const text = toTextMessage(message);
+      if (!text) {
+        sendError(ws, "UNSUPPORTED_PAYLOAD", "Unsupported payload.");
+        return;
+      }
+      if (Buffer.byteLength(text, "utf8") > 16 * 1024) {
+        sendError(ws, "PAYLOAD_TOO_LARGE", "Payload exceeds 16 KiB.");
+        return;
+      }
+
+      try {
+        payload = JSON.parse(text) as ClientMessage;
+      } catch {
+        sendError(ws, "INVALID_JSON", "Invalid JSON.");
+        return;
+      }
     }
 
     if (payload.type === "ping") {
-      ws.send(JSON.stringify({ type: "pong" }));
+      ws.send(JSON.stringify({ type: "pong", requestId: requestId(payload) }));
       return;
     }
 
     if (payload.type === "subscribe") {
-      await this.subscribe(ws, payload.symbols, payload.modeType);
+      await this.subscribe(
+        ws,
+        payload.symbols,
+        payload.modeType,
+        requestId(payload),
+      );
       return;
     }
 
     if (payload.type === "unsubscribe") {
-      await this.unsubscribe(ws, payload.symbols);
+      await this.unsubscribe(
+        ws,
+        payload.symbols,
+        payload.modeType,
+        requestId(payload),
+      );
       return;
     }
 
-    ws.send(JSON.stringify({ type: "error", message: "Unknown message type" }));
+    sendError(
+      ws,
+      "UNKNOWN_MESSAGE_TYPE",
+      "Unknown message type.",
+      requestId(payload),
+    );
   }
 
   async close(ws: GatewaySocket) {
-    const state = this.states.get(ws);
-    this.sockets.delete(ws);
+    const identity = socketIdentity(ws);
+    const state = this.states.get(identity);
+    this.sockets.delete(identity);
+    this.socketHandles.delete(identity);
     if (!state) {
       return;
     }
@@ -134,7 +188,7 @@ export class MarketGateway {
         this.memberKey(state.id),
         now,
       );
-      this.instrumentSubscribers.get(preference.instrumentKey)?.delete(ws);
+      this.subscriptionSubscribers.get(subscriptionKey)?.delete(identity);
       if (remaining === 0) {
         await this.publishControl("unsubscribe", subscriptionKey, preference);
       }
@@ -145,8 +199,10 @@ export class MarketGateway {
     ws: GatewaySocket,
     symbols: unknown,
     modeInput: unknown,
+    messageRequestId: string | null,
   ) {
-    const state = this.states.get(ws);
+    const identity = socketIdentity(ws);
+    const state = this.states.get(identity);
     if (!state) {
       return;
     }
@@ -154,18 +210,20 @@ export class MarketGateway {
     const mode = normalizeMode(modeInput, this.defaultMode);
     const preferences = normalizePreferences(symbols, this.catalog, mode);
     if (preferences.length === 0) {
-      ws.send(
-        JSON.stringify({ type: "error", message: "No valid symbols supplied" }),
+      sendError(
+        ws,
+        "NO_VALID_SYMBOLS",
+        "No valid symbols supplied.",
+        messageRequestId,
       );
       return;
     }
 
     if (state.subscriptions.size + preferences.length > this.maxSubscriptions) {
-      ws.send(
-        JSON.stringify({
-          type: "error",
-          message: `Subscription limit exceeded (${this.maxSubscriptions})`,
-        }),
+      sendError(
+        ws,
+        "SUBSCRIPTION_LIMIT_EXCEEDED",
+        `Subscription limit exceeded (${this.maxSubscriptions}).`,
       );
       return;
     }
@@ -188,10 +246,10 @@ export class MarketGateway {
 
       state.subscriptions.set(subscriptionKey, preference);
       const bucket =
-        this.instrumentSubscribers.get(preference.instrumentKey) ??
-        new Set<GatewaySocket>();
-      bucket.add(ws);
-      this.instrumentSubscribers.set(preference.instrumentKey, bucket);
+        this.subscriptionSubscribers.get(subscriptionKey) ??
+        new Set<SocketIdentity>();
+      bucket.add(identity);
+      this.subscriptionSubscribers.set(subscriptionKey, bucket);
       subscribed.push(preference);
 
       if (activeCount === 1) {
@@ -202,26 +260,33 @@ export class MarketGateway {
     ws.send(
       JSON.stringify({
         type: "subscribed",
+        requestId: messageRequestId,
         count: subscribed.length,
         symbols: subscribed,
       }),
     );
   }
 
-  private async unsubscribe(ws: GatewaySocket, symbols: unknown) {
-    const state = this.states.get(ws);
+  private async unsubscribe(
+    ws: GatewaySocket,
+    symbols: unknown,
+    modeInput: unknown,
+    messageRequestId: string | null,
+  ) {
+    const identity = socketIdentity(ws);
+    const state = this.states.get(identity);
     if (!state) {
       return;
     }
 
-    const preferences = normalizePreferences(
-      symbols,
-      this.catalog,
-      this.defaultMode,
-    );
+    const mode = normalizeMode(modeInput, this.defaultMode);
+    const preferences = normalizePreferences(symbols, this.catalog, mode);
     if (preferences.length === 0) {
-      ws.send(
-        JSON.stringify({ type: "error", message: "No valid symbols supplied" }),
+      sendError(
+        ws,
+        "NO_VALID_SYMBOLS",
+        "No valid symbols supplied.",
+        messageRequestId,
       );
       return;
     }
@@ -242,7 +307,7 @@ export class MarketGateway {
       );
 
       state.subscriptions.delete(subscriptionKey);
-      this.instrumentSubscribers.get(preference.instrumentKey)?.delete(ws);
+      this.subscriptionSubscribers.get(subscriptionKey)?.delete(identity);
       removed.push(preference);
 
       if (remaining === 0) {
@@ -253,6 +318,7 @@ export class MarketGateway {
     ws.send(
       JSON.stringify({
         type: "unsubscribed",
+        requestId: messageRequestId,
         count: removed.length,
         symbols: removed,
       }),
@@ -261,8 +327,8 @@ export class MarketGateway {
 
   private async refreshLeases() {
     const expiresAt = Date.now() + this.leaseMs;
-    for (const socket of this.sockets) {
-      const state = this.states.get(socket);
+    for (const identity of this.sockets) {
+      const state = this.states.get(identity);
       if (!state || state.subscriptions.size === 0) {
         continue;
       }
@@ -289,18 +355,18 @@ export class MarketGateway {
   }
 
   private broadcastQuote(event: QuoteEvent) {
-    const subscribers = this.instrumentSubscribers.get(event.instrumentKey);
+    const subscribers = this.subscriptionSubscribers.get(event.subscriptionKey);
     if (!subscribers || subscribers.size === 0) {
       return;
     }
 
     const payload = JSON.stringify({
       type: "quote",
-      data: event.quote,
+      data: publicQuote(event.quote),
     });
 
-    for (const socket of subscribers) {
-      socket.send(payload);
+    for (const identity of subscribers) {
+      this.socketHandles.get(identity)?.send(payload);
     }
   }
 
@@ -369,17 +435,58 @@ function toTextMessage(message: unknown) {
   return null;
 }
 
+function isClientMessage(message: unknown): message is ClientMessage {
+  return Boolean(
+    message &&
+      typeof message === "object" &&
+      !Array.isArray(message) &&
+      !(message instanceof ArrayBuffer) &&
+      !(message instanceof Uint8Array) &&
+      !Buffer.isBuffer(message),
+  );
+}
+
+function requestId(message: ClientMessage) {
+  return typeof message.requestId === "string" && message.requestId.trim()
+    ? message.requestId.trim()
+    : null;
+}
+
+function sendError(
+  ws: GatewaySocket,
+  code: string,
+  message: string,
+  messageRequestId: string | null = null,
+) {
+  ws.send(
+    JSON.stringify({
+      type: "error",
+      error: { code, message },
+      requestId: messageRequestId,
+    }),
+  );
+}
+
+function publicQuote(quote: QuoteEvent["quote"]) {
+  const { raw: _raw, ...publicFields } = quote;
+  return publicFields;
+}
+
 function findPreference(
   subscriptionKey: string,
-  states: WeakMap<GatewaySocket, SocketState>,
-  sockets: Set<GatewaySocket>,
+  states: WeakMap<SocketIdentity, SocketState>,
+  sockets: Set<SocketIdentity>,
 ) {
-  for (const socket of sockets) {
-    const state = states.get(socket);
+  for (const identity of sockets) {
+    const state = states.get(identity);
     const preference = state?.subscriptions.get(subscriptionKey);
     if (preference) {
       return preference;
     }
   }
   return null;
+}
+
+function socketIdentity(socket: GatewaySocket): SocketIdentity {
+  return socket.raw ?? socket;
 }

@@ -2,9 +2,11 @@ import { join } from "node:path";
 import dotenv from "dotenv";
 import type { MarketMode } from "../types/market";
 import type {
+  AuthEnv,
   CatalogConfig,
   CatalogWorkerEnv,
   DBConfig,
+  GoogleOAuthConfig,
   IngestWorkerEnv,
   MarketConfig,
   OperatorEnv,
@@ -12,11 +14,9 @@ import type {
   PaytmConfig,
   RedisConfig,
   RuntimeEnv,
-  AuthEnv,
   ServiceConfig,
   SubscriptionConfig,
   WebSocketConfig,
-  GoogleOAuthConfig,
 } from "./interfaces";
 
 dotenv.config();
@@ -50,7 +50,16 @@ function loadServiceConfig(): ServiceConfig {
   return {
     name: process.env.SERVICE_NAME ?? "mock-trader-api",
     port: asPositiveInt(process.env.PORT, 3000),
+    publicUrl: process.env.API_PUBLIC_URL ?? "http://localhost:3000",
+    allowedOrigins: csv(process.env.APP_ORIGINS ?? "http://localhost:3001"),
   };
+}
+
+function csv(value: string) {
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function loadRedisConfig(): RedisConfig {
@@ -214,7 +223,12 @@ export function loadDatabaseEnv(): DBConfig {
 }
 
 export function loadAuthEnv(): AuthEnv {
+  const baseUrl = required("BETTER_AUTH_URL");
   return {
+    baseUrl,
+    secret: required("BETTER_AUTH_SECRET"),
+    trustedOrigins: csv(process.env.APP_ORIGINS ?? "http://localhost:3001"),
+    secureCookies: baseUrl.startsWith("https://"),
     google: loadGoogleOAuthConfig(),
   };
 }

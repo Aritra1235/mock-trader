@@ -2,6 +2,7 @@ import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import { buildApp } from "../app/buildApp";
 import { loadRuntimeEnv } from "../config/env";
+import { pool } from "../db";
 import { PaytmHttpClient } from "../providers/paytmHttpClient";
 import { RedisMarketDataStore } from "../repositories/marketDataStore";
 import { RedisSubscriptionLeaseRepository } from "../repositories/subscriptionLeaseRepository";
@@ -93,6 +94,10 @@ export async function bootstrapRuntime() {
       gateway,
       store,
       leases,
+      databasePing: async () => {
+        await pool.query("select 1");
+        return true;
+      },
     }),
     store,
     leases,

@@ -138,6 +138,11 @@ test("app exposes health, instrument search, and quotes", async () => {
   const docsPage = await docsPageResponse.text();
   expect(docsPage).toContain("https://cdn.tailwindcss.com");
   expect(docsPage).toContain("No Paytm auth is exposed to the browser.");
+  const apiDocsResponse = await app.handle(
+    new Request("http://localhost/docs/api"),
+  );
+  expect(apiDocsResponse.status).toBe(200);
+  expect(await apiDocsResponse.text()).toContain("API Reference — Mock Trader");
 
   const readyResponse = await app.handle(new Request("http://localhost/ready"));
   expect(readyResponse.status).toBe(503);
@@ -153,13 +158,37 @@ test("app exposes health, instrument search, and quotes", async () => {
   ).toBe(404);
 
   const searchResponse = await app.handle(
-    new Request("http://localhost/v1/market/instruments/search?q=rel"),
+    new Request("http://localhost/api/v1/market/instruments/search?q=rel"),
   );
   const search = await searchResponse.json();
   expect(search[0]?.symbol).toBe("RELIANCE");
 
+  const apiSearchResponse = await app.handle(
+    new Request("http://localhost/api/v1/market/instruments/search?q=rel"),
+  );
+  const apiSearch = await apiSearchResponse.json();
+  expect(Array.isArray(apiSearch)).toBeTrue();
+  expect(apiSearch[0]?.symbol).toBe("RELIANCE");
+
+  for (const prefix of ["/api/v1"]) {
+    const statsResponse = await app.handle(
+      new Request(`http://localhost${prefix}/market/stats`),
+    );
+    expect(statsResponse.status).toBe(200);
+
+    const instrumentResponse = await app.handle(
+      new Request(`http://localhost${prefix}/market/instruments/RELIANCE`),
+    );
+    expect(instrumentResponse.status).toBe(200);
+
+    const candlesResponse = await app.handle(
+      new Request(`http://localhost${prefix}/market/candles/RELIANCE`),
+    );
+    expect(candlesResponse.status).toBe(404);
+  }
+
   const quoteResponse = await app.handle(
-    new Request("http://localhost/v1/market/quotes?ids=RELIANCE"),
+    new Request("http://localhost/api/v1/market/quotes?ids=RELIANCE"),
   );
   const quotes = await quoteResponse.json();
   expect(quotes.data[0]?.quote?.lastPrice).toBe(1500);

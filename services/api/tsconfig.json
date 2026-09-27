@@ -10,5 +10,10 @@
     "skipLibCheck": true,
     "resolveJsonModule": true
   },
-  "include": ["src/**/*.ts", "workers/**/*.ts", "tests/**/*.ts"]
+  "include": [
+    "src/**/*.ts",
+    "workers/**/*.ts",
+    "scripts/**/*.ts",
+    "tests/**/*.ts"
+  ]
 }

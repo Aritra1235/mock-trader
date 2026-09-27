@@ -57,6 +57,8 @@ export interface DBConfig {
 export interface ServiceConfig {
   name: string;
   port: number;
+  publicUrl?: string;
+  allowedOrigins?: string[];
 }
 
 export interface RuntimeEnv {
@@ -96,6 +98,10 @@ export interface CatalogWorkerEnv {
 }
 
 export interface AuthEnv {
+  baseUrl: string;
+  secret: string;
+  trustedOrigins: string[];
+  secureCookies: boolean;
   google: GoogleOAuthConfig;
 }
 

@@ -12,10 +12,22 @@
     "db:migrate": "bun run src/db/migrate.ts",
     "db:check": "drizzle-kit check",
     "db:studio": "drizzle-kit studio",
+    "db:push": "drizzle-kit push",
+    "openapi:generate": "bun run scripts/generate-openapi.ts && biome format --write openapi.json",
+    "client:generate": "bun run openapi:generate && openapi-typescript openapi.json -o ../next-web/src/generated/api-schema.ts && biome format --write ../next-web/src/generated/api-schema.ts",
+    "seed:demo": "bun run scripts/seed-demo.ts",
     "paytm:login-url": "bun run scripts/paytm-login-url.ts",
     "paytm:exchange-token": "bun run scripts/paytm-exchange-token.ts",
     "paytm:session": "bun run scripts/paytm-session-status.ts",
     "verify:paytm": "bun run scripts/verify-paytm-market-data.ts",
+    "fraud:all": "bun run fraud:account-integrity && bun run fraud:sessions && bun run fraud:leaderboard && bun run fraud:leaderboard:portfolio && bun run fraud:trades && bun run fraud:trading:collusion && bun run fraud:market-manipulation",
+    "fraud:account-integrity": "bun run scripts/fraud/accounts/integrity.ts",
+    "fraud:sessions": "bun run scripts/fraud/sessions/anomalies.ts",
+    "fraud:leaderboard": "bun run scripts/fraud/leaderboard/abuse.ts",
+    "fraud:leaderboard:portfolio": "bun run scripts/fraud/leaderboard/portfolio-integrity.ts",
+    "fraud:trades": "bun run scripts/fraud/trading/trade-abuse.ts",
+    "fraud:trading:collusion": "bun run scripts/fraud/trading/collusion.ts",
+    "fraud:market-manipulation": "bun run scripts/fraud/trading/market-manipulation.ts",
     "test": "bun test tests",
     "test:unit": "bun test tests/unit",
     "test:integration": "bun test tests/integration",
@@ -27,10 +39,12 @@
   "dependencies": {
     "@elysia/openapi": "^1.4.15",
     "@elysia/opentelemetry": "^1.4.12",
+    "@elysiajs/cors": "^1.4.2",
     "@opentelemetry/exporter-trace-otlp-proto": "^0.219.0",
     "@opentelemetry/sdk-trace-node": "^2.8.0",
     "@types/bun": "^1.3.14",
     "better-auth": "^1.6.23",
+    "better-auth-audit-logs": "^0.3.0",
     "dotenv": "^17.4.2",
     "drizzle-orm": "0.45.2",
     "elysia": "latest",
@@ -39,14 +53,15 @@
     "redis": "^4.7.0",
     "request": "^2.88.2",
     "tsc": "^2.0.4",
-    "typescript": "^7.0.2"
+    "typescript": "5.9.3"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.2.0",
     "@types/pg": "^8.20.0",
     "bun-types": "latest",
     "drizzle-kit": "0.31.10",
-    "tsx": "^4.22.5",
-    "@biomejs/biome": "2.2.0"
+    "openapi-typescript": "^7.13.0",
+    "tsx": "^4.22.5"
   },
   "module": "src/index.js"
 }
