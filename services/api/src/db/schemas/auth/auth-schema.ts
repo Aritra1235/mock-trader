@@ -1,5 +1,13 @@
 import { relations } from "drizzle-orm";
-import { pgTable, text, timestamp, boolean, index } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+} from "drizzle-orm/pg-core";
 
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
@@ -16,6 +24,11 @@ export const user = pgTable("user", {
   banned: boolean("banned").default(false),
   banReason: text("ban_reason"),
   banExpires: timestamp("ban_expires"),
+  trading_status: text("trading_status").default("active"),
+  leaderboard_status: text("leaderboard_status").default("eligible"),
+  risk_tier: text("risk_tier").default("low"),
+  fraud_review_status: text("fraud_review_status").default("clear"),
+  last_risk_review_at: timestamp("last_risk_review_at"),
 });
 
 export const session = pgTable(
@@ -34,8 +47,18 @@ export const session = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     impersonatedBy: text("impersonated_by"),
+    device_fingerprint: text("device_fingerprint"),
+    device_trust_score: integer("device_trust_score").default(0),
+    geo_country: text("geo_country"),
+    geo_region: text("geo_region"),
+    risk_score: integer("risk_score").default(0),
+    risk_signals: jsonb("risk_signals"),
   },
-  (table) => [index("session_userId_idx").on(table.userId)],
+  (table) => [
+    index("session_userId_idx").on(table.userId),
+    index("session_device_fingerprint_idx").on(table.device_fingerprint),
+    index("session_risk_score_idx").on(table.risk_score),
+  ],
 );
 
 export const account = pgTable(
@@ -78,9 +101,30 @@ export const verification = pgTable(
   (table) => [index("verification_identifier_idx").on(table.identifier)],
 );
 
+export const auditLog = pgTable(
+  "audit_log",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
+    action: text("action").notNull(),
+    status: text("status").notNull(),
+    severity: text("severity").notNull(),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    metadata: text("metadata"),
+    createdAt: timestamp("created_at").notNull(),
+  },
+  (table) => [
+    index("auditLog_userId_idx").on(table.userId),
+    index("auditLog_action_idx").on(table.action),
+    index("auditLog_createdAt_idx").on(table.createdAt),
+  ],
+);
+
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),
+  auditLogs: many(auditLog),
 }));
 
 export const sessionRelations = relations(session, ({ one }) => ({
@@ -93,6 +137,13 @@ export const sessionRelations = relations(session, ({ one }) => ({
 export const accountRelations = relations(account, ({ one }) => ({
   user: one(user, {
     fields: [account.userId],
+    references: [user.id],
+  }),
+}));
+
+export const auditLogRelations = relations(auditLog, ({ one }) => ({
+  user: one(user, {
+    fields: [auditLog.userId],
     references: [user.id],
   }),
 }));
