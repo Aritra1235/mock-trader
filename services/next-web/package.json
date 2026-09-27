@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3001",
     "build": "next build",
     "start": "next start",
     "lint": "biome check",
@@ -14,6 +14,7 @@
     "clsx": "^2.1.1",
     "lucide-react": "^1.14.0",
     "next": "16.2.6",
+    "openapi-fetch": "^0.17.0",
     "radix-ui": "^1.4.3",
     "react": "19.2.4",
     "react-dom": "19.2.4",

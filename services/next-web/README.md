@@ -14,7 +14,7 @@ pnpm dev
 bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3001](http://localhost:3001) with your browser to see the result. The API uses port `3000`.
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
@@ -26,7 +26,8 @@ This WebSocket is **price updates only** (LTP/QUOTE). **Chart data stays HTTP** 
 
 **Endpoint**
 
-- Default: `ws://<api-host>:3000/ws/prices` (configurable via API `PRICE_WS_PATH`)
+- Default: `ws://<api-host>:3000/ws/market` (configurable via API `PRICE_WS_PATH`)
+- The normal Better Auth session cookie and an allowed browser origin are required.
 
 **Client -> Server**
 
@@ -53,7 +54,7 @@ Unsubscribe:
 On connect:
 
 ```json
-{ "type": "connected", "maxSubscriptions": 50, "modeType": "LTP" }
+{ "type": "connected", "maxSubscriptions": 100, "upstreamMode": "QUOTE" }
 ```
 
 On updates:
@@ -62,11 +63,11 @@ On updates:
 {
   "type": "price",
   "data": {
-    "scripId": "3456",
-    "last_price": "123.45",
+    "instrumentKey": "NSE:EQUITY:3456",
+    "securityId": "3456",
+    "lastPrice": 123.45,
     "providerTs": 1747700000,
-    "serverTs": 1747700001,
-    "subscriptionKey": "NSE:EQUITY:LTP:3456"
+    "receivedAt": "2026-09-27T09:30:01.000Z"
   }
 }
 ```
@@ -74,7 +75,7 @@ On updates:
 **Notes**
 
 - Use **one WebSocket per browser session** and multiplex subscriptions.
-- The server enforces `MAX_PRICE_SUBSCRIPTIONS` per connection (default `50`).
+- The server enforces `MAX_PRICE_SUBSCRIPTIONS` per connection (default `100`).
 - Reconnect on disconnect and re-send active subscriptions.
 - `providerTs`/`serverTs` are included for ordering/latency.
 
