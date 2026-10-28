@@ -27,6 +27,13 @@ import type { CatalogService } from "../catalogService";
 import type { MarketDataService } from "../marketDataService";
 
 type OrderSide = "buy" | "sell";
+
+/**
+ * A short sale credits its proceeds to cash, but buying power drops by the
+ * sale value: the proceeds stay as collateral and the same amount again is
+ * held as margin (2x the entry value in total). Covering releases it.
+ */
+const SHORT_HOLD_FACTOR = 2;
 type OrderType = "market" | "limit" | "stop" | "stop_limit";
 type TimeInForce = "day" | "gtc" | "ioc" | "fok";
 
@@ -1111,13 +1118,6 @@ export class DrizzleMockTradingService implements MockTradingService {
     );
 
     if (args.input.side === "buy") {
-      if (num(args.account.mockBuyingPower) < net) {
-        throw new HttpError(
-          409,
-          "INSUFFICIENT_MOCK_CASH",
-          "Mock buying power is insufficient.",
-        );
-      }
       return this.executeBuy(tx, args, gross, fees, net, quoteId, observedAt);
     }
 
@@ -1140,6 +1140,23 @@ export class DrizzleMockTradingService implements MockTradingService {
     quoteId: string | null,
     observedAt: Date | null,
   ) {
+    const current = await this.readPosition(
+      tx,
+      args.account.id,
+      args.instrument.instrumentKey,
+    );
+    const shortQty = Math.max(0, -num(current?.quantity));
+    const coverQty = Math.min(args.input.quantity, shortQty);
+    const longQty = args.input.quantity - coverQty;
+    const released = SHORT_HOLD_FACTOR * coverQty * num(current?.averageCost);
+    if (num(args.account.mockBuyingPower) + released < net) {
+      throw new HttpError(
+        409,
+        "INSUFFICIENT_MOCK_CASH",
+        "Mock buying power is insufficient.",
+      );
+    }
+
     const newCash = num(args.account.mockCashBalance) - net;
     const tradeId = randomId();
     const now = new Date();
@@ -1167,6 +1184,20 @@ export class DrizzleMockTradingService implements MockTradingService {
       })
       .returning();
 
+    const realizedPnl =
+      coverQty > 0
+        ? await this.consumeLots(
+            tx,
+            args.account.id,
+            args.instrument.instrumentKey,
+            coverQty,
+            args.referencePrice,
+            tradeId,
+            now,
+            num(current?.averageCost),
+            "short",
+          )
+        : 0;
     const position = await this.upsertBoughtPosition(
       tx,
       args.account.id,
@@ -1174,23 +1205,34 @@ export class DrizzleMockTradingService implements MockTradingService {
       args.instrument.instrumentKey,
       args.input.quantity,
       args.referencePrice,
+      realizedPnl,
     );
 
-    await tx.insert(positionLots).values({
-      id: randomId(),
-      accountId: args.account.id,
-      userId: args.account.userId,
-      instrumentId: args.instrument.instrumentKey,
-      positionId: position.id,
-      openingTradeId: tradeId,
-      status: "open",
-      openedQuantity: money(args.input.quantity),
-      remainingQuantity: money(args.input.quantity),
-      costBasisPrice: money(args.referencePrice),
-      costBasisAmount: money(gross),
-      openedAt: now,
-      metadata: { source: "market_order" },
-    });
+    if (longQty > 0) {
+      await tx.insert(positionLots).values({
+        id: randomId(),
+        accountId: args.account.id,
+        userId: args.account.userId,
+        instrumentId: args.instrument.instrumentKey,
+        positionId: position.id,
+        openingTradeId: tradeId,
+        status: "open",
+        openedQuantity: money(longQty),
+        remainingQuantity: money(longQty),
+        costBasisPrice: money(args.referencePrice),
+        costBasisAmount: money(longQty * args.referencePrice),
+        openedAt: now,
+        metadata: { source: "market_order", direction: "long" },
+      });
+    }
+    let finalTrade = trade;
+    if (coverQty > 0) {
+      [finalTrade] = await tx
+        .update(trades)
+        .set({ metadata: { mock: true, realizedPnl } })
+        .where(eq(trades.id, tradeId))
+        .returning();
+    }
 
     await this.writeLedger(tx, {
       account: args.account,
@@ -1200,14 +1242,21 @@ export class DrizzleMockTradingService implements MockTradingService {
       referenceType: "trade",
       referenceId: tradeId,
       idempotencyKey: `${args.order.id}:cash:buy`,
-      description: "Mock market buy fill.",
+      description:
+        coverQty > 0
+          ? "Mock market buy fill (short cover)."
+          : "Mock market buy fill.",
     });
 
     const [account] = await tx
       .update(tradingAccounts)
       .set({
         mockCashBalance: money(newCash),
-        mockBuyingPower: money(newCash - num(args.account.reservedMockCash)),
+        mockBuyingPower: money(
+          newCash -
+            num(args.account.reservedMockCash) -
+            (await this.shortHold(tx, args.account.id)),
+        ),
         updatedAt: now,
       })
       .where(eq(tradingAccounts.id, args.account.id))
@@ -1234,7 +1283,14 @@ export class DrizzleMockTradingService implements MockTradingService {
       context: args.context,
     });
 
-    return { order, trade, account, position, filled: true as const };
+    return {
+      order,
+      trade: finalTrade ?? trade,
+      account,
+      position,
+      realizedPnl,
+      filled: true as const,
+    };
   }
 
   private async executeSell(
@@ -1253,21 +1309,35 @@ export class DrizzleMockTradingService implements MockTradingService {
     quoteId: string | null,
     observedAt: Date | null,
   ) {
-    const [position] = await tx
-      .select()
-      .from(positions)
-      .where(
-        and(
-          eq(positions.accountId, args.account.id),
-          eq(positions.instrumentId, args.instrument.instrumentKey),
-        ),
-      )
-      .limit(1);
-    if (!position || num(position.availableQuantity) < args.input.quantity) {
+    const position = await this.readPosition(
+      tx,
+      args.account.id,
+      args.instrument.instrumentKey,
+    );
+    const currentQty = num(position?.quantity);
+    const longQty = Math.max(0, currentQty);
+    const closeQty = Math.min(args.input.quantity, longQty);
+    const shortQty = args.input.quantity - closeQty;
+    // Shares held back by open sell orders can't be sold again, and a short
+    // can't be opened on top of them either.
+    if (closeQty > 0 && num(position?.availableQuantity) < closeQty) {
       throw new HttpError(
         409,
         "INSUFFICIENT_POSITION",
-        "Available mock position is insufficient.",
+        "Shares are reserved by open sell orders. Cancel them first.",
+      );
+    }
+    // Opening a short costs buying power equal to its value (see SHORT_HOLD_FACTOR).
+    const buyingPowerAfterClose =
+      num(args.account.mockBuyingPower) + closeQty * args.referencePrice;
+    if (
+      shortQty > 0 &&
+      buyingPowerAfterClose < shortQty * args.referencePrice
+    ) {
+      throw new HttpError(
+        409,
+        "INSUFFICIENT_MOCK_CASH",
+        "Not enough buying power to cover the margin for this short sale.",
       );
     }
 
@@ -1296,16 +1366,20 @@ export class DrizzleMockTradingService implements MockTradingService {
       })
       .returning();
 
-    const realizedPnl = await this.consumeLots(
-      tx,
-      args.account.id,
-      args.instrument.instrumentKey,
-      args.input.quantity,
-      args.referencePrice,
-      tradeId,
-      now,
-      num(position.averageCost),
-    );
+    const realizedPnl =
+      closeQty > 0
+        ? await this.consumeLots(
+            tx,
+            args.account.id,
+            args.instrument.instrumentKey,
+            closeQty,
+            args.referencePrice,
+            tradeId,
+            now,
+            num(position?.averageCost),
+            "long",
+          )
+        : 0;
     const [trade] = await tx
       .update(trades)
       .set({ metadata: { mock: true, realizedPnl } })
@@ -1319,21 +1393,61 @@ export class DrizzleMockTradingService implements MockTradingService {
       );
     }
 
-    const newQuantity = num(position.quantity) - args.input.quantity;
-    const [updatedPosition] = await tx
-      .update(positions)
-      .set({
-        quantity: money(newQuantity),
-        availableQuantity: money(
-          num(position.availableQuantity) - args.input.quantity,
-        ),
-        averageCost: newQuantity <= 0 ? "0" : position.averageCost,
-        realizedPnl: money(num(position.realizedPnl) + realizedPnl),
-        unrealizedPnl: "0",
-        updatedAt: now,
-      })
-      .where(eq(positions.id, position.id))
-      .returning();
+    const newQuantity = currentQty - args.input.quantity;
+    // A short's average cost is its average entry price.
+    const priorShort = Math.max(0, -currentQty);
+    const newAverage =
+      newQuantity > 0
+        ? num(position?.averageCost)
+        : newQuantity === 0
+          ? 0
+          : (priorShort * num(position?.averageCost) +
+              shortQty * args.referencePrice) /
+            (priorShort + shortQty);
+    const values = {
+      quantity: money(newQuantity),
+      availableQuantity: money(
+        num(position?.availableQuantity) - args.input.quantity,
+      ),
+      averageCost: money(newAverage),
+      realizedPnl: money(num(position?.realizedPnl) + realizedPnl),
+      unrealizedPnl: "0",
+      updatedAt: now,
+    };
+    const [updatedPosition] = position
+      ? await tx
+          .update(positions)
+          .set(values)
+          .where(eq(positions.id, position.id))
+          .returning()
+      : await tx
+          .insert(positions)
+          .values({
+            id: randomId(),
+            accountId: args.account.id,
+            instrumentId: args.instrument.instrumentKey,
+            openedAt: now,
+            ...values,
+          })
+          .returning();
+
+    if (shortQty > 0) {
+      await tx.insert(positionLots).values({
+        id: randomId(),
+        accountId: args.account.id,
+        userId: args.account.userId,
+        instrumentId: args.instrument.instrumentKey,
+        positionId: updatedPosition.id,
+        openingTradeId: tradeId,
+        status: "open",
+        openedQuantity: money(shortQty),
+        remainingQuantity: money(shortQty),
+        costBasisPrice: money(args.referencePrice),
+        costBasisAmount: money(shortQty * args.referencePrice),
+        openedAt: now,
+        metadata: { source: "market_order", direction: "short" },
+      });
+    }
 
     const newCash = num(args.account.mockCashBalance) + net;
     await this.writeLedger(tx, {
@@ -1344,14 +1458,21 @@ export class DrizzleMockTradingService implements MockTradingService {
       referenceType: "trade",
       referenceId: tradeId,
       idempotencyKey: `${args.order.id}:cash:sell`,
-      description: "Mock market sell fill.",
+      description:
+        shortQty > 0
+          ? "Mock market sell fill (short sale)."
+          : "Mock market sell fill.",
     });
 
     const [account] = await tx
       .update(tradingAccounts)
       .set({
         mockCashBalance: money(newCash),
-        mockBuyingPower: money(newCash - num(args.account.reservedMockCash)),
+        mockBuyingPower: money(
+          newCash -
+            num(args.account.reservedMockCash) -
+            (await this.shortHold(tx, args.account.id)),
+        ),
         updatedAt: now,
       })
       .where(eq(tradingAccounts.id, args.account.id))
@@ -1554,17 +1675,9 @@ export class DrizzleMockTradingService implements MockTradingService {
     instrumentId: string,
     quantity: number,
     price: number,
+    realizedPnl = 0,
   ) {
-    const [current] = await tx
-      .select()
-      .from(positions)
-      .where(
-        and(
-          eq(positions.accountId, accountId),
-          eq(positions.instrumentId, instrumentId),
-        ),
-      )
-      .limit(1);
+    const current = await this.readPosition(tx, accountId, instrumentId);
     const now = new Date();
 
     if (!current) {
@@ -1585,21 +1698,61 @@ export class DrizzleMockTradingService implements MockTradingService {
 
     const currentQty = num(current.quantity);
     const newQty = currentQty + quantity;
+    // Covering keeps a remaining short at its entry price; flipping to long
+    // starts a fresh cost basis at this fill.
     const newAverage =
-      newQty <= 0
+      newQty === 0
         ? 0
-        : (currentQty * num(current.averageCost) + quantity * price) / newQty;
+        : newQty < 0
+          ? num(current.averageCost)
+          : currentQty <= 0
+            ? price
+            : (currentQty * num(current.averageCost) + quantity * price) /
+              newQty;
     const [updated] = await tx
       .update(positions)
       .set({
         quantity: money(newQty),
         availableQuantity: money(num(current.availableQuantity) + quantity),
         averageCost: money(newAverage),
+        realizedPnl: money(num(current.realizedPnl) + realizedPnl),
         updatedAt: now,
       })
       .where(eq(positions.id, current.id))
       .returning();
     return updated;
+  }
+
+  private async readPosition(tx: Tx, accountId: string, instrumentId: string) {
+    const [position] = await tx
+      .select()
+      .from(positions)
+      .where(
+        and(
+          eq(positions.accountId, accountId),
+          eq(positions.instrumentId, instrumentId),
+        ),
+      )
+      .limit(1);
+    return position;
+  }
+
+  /** Buying power held against the account's open short positions. */
+  private async shortHold(tx: Tx, accountId: string) {
+    const shorts = await tx
+      .select({
+        quantity: positions.quantity,
+        averageCost: positions.averageCost,
+      })
+      .from(positions)
+      .where(
+        and(eq(positions.accountId, accountId), lt(positions.quantity, "0")),
+      );
+    return shorts.reduce(
+      (total, row) =>
+        total + SHORT_HOLD_FACTOR * -num(row.quantity) * num(row.averageCost),
+      0,
+    );
   }
 
   private async consumeLots(
@@ -1611,7 +1764,10 @@ export class DrizzleMockTradingService implements MockTradingService {
     closingTradeId: string,
     closedAt: Date,
     fallbackCost: number,
+    direction: "long" | "short",
   ) {
+    const pnlPerShare = (cost: number) =>
+      direction === "long" ? sellPrice - cost : cost - sellPrice;
     const lots = await tx
       .select()
       .from(positionLots)
@@ -1631,7 +1787,7 @@ export class DrizzleMockTradingService implements MockTradingService {
         break;
       }
       const consumed = Math.min(remaining, num(lot.remainingQuantity));
-      const lotPnl = consumed * (sellPrice - num(lot.costBasisPrice));
+      const lotPnl = consumed * pnlPerShare(num(lot.costBasisPrice));
       const nextRemaining = num(lot.remainingQuantity) - consumed;
       realizedPnl += lotPnl;
       remaining -= consumed;
@@ -1649,7 +1805,7 @@ export class DrizzleMockTradingService implements MockTradingService {
     }
 
     if (remaining > 0) {
-      realizedPnl += remaining * (sellPrice - fallbackCost);
+      realizedPnl += remaining * pnlPerShare(fallbackCost);
     }
 
     return realizedPnl;
