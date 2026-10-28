@@ -1,95 +1,33 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Mock Trader frontend
 
-## Getting Started
+Next.js 16 app for the INR practice-trading MVP. Run it on port 3001 with `bun run dev`; the API runs on port 5000.
 
-First, run the development server:
+## API access
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+The browser calls the API directly at `NEXT_PUBLIC_API_URL` (default `http://localhost:5000`) with credentials, and opens the market socket at `NEXT_PUBLIC_MARKET_WS_URL`. The API must list this app's origin in `APP_ORIGINS`; that one list drives CORS, Better Auth's trusted origins and the websocket origin check.
 
-Open [http://localhost:3001](http://localhost:3001) with your browser to see the result. The API uses port `3000`.
+`localhost` and `127.0.0.1` are different sites to the browser, so when both the page and the configured API host are loopback, the app calls the API on the page's own loopback name to keep the session cookie same-site. To open the dev server from another hostname, add it to `DEV_ORIGINS`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Theme
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Light and dark themes follow the OS setting until the user picks one with the sun/moon button in the top bar; the choice is stored in `localStorage` (`mock-trader-theme`). Colours are CSS variables in `globals.css`, with the dark values under `:root[data-theme="dark"]`.
 
-## Price WebSocket (frontend integration)
+## Layout
 
-This WebSocket is **price updates only** (LTP/QUOTE). **Chart data stays HTTP** (not over this socket).
+A broker-style terminal: a persistent watchlist on the left, the active screen on the right, and a buy/sell order window that opens over any screen. The shell and its live data live in `TraderProvider` (`src/components/trader-provider.tsx`), so the quote socket and watchlist survive navigation.
 
-**Endpoint**
+- `/` Dashboard: margin, holdings P&L, recent orders
+- `/markets`: catalog search with exchange filter; large caps by default
+- `/markets/[id]`: quote, session stats, candlestick chart with MA and volume
+- `/portfolio` Holdings: positions valued at the latest price, with totals
+- `/activity` Orders: order book, trade book, and `?tab=funds` for margin and the cash ledger
 
-- Default: `ws://<api-host>:3000/ws/market` (configurable via API `PRICE_WS_PATH`)
-- The normal Better Auth session cookie and an allowed browser origin are required.
+The watchlist is stored in the browser (`mock-trader-watchlist`, up to 50 instruments, exact NSE/BSE listings). It starts with six NSE large caps and migrates the older `mock-trader-pins` symbol list. Press `/` to search; hover a row for Buy, Sell, chart, and remove.
 
-**Client -> Server**
+When no live quote is available, prices fall back to the last daily close and are marked as such. Orders still require a fresh live quote; the order window explains why it is disabled.
 
-Subscribe:
+The chart uses [KLineChart](https://klinecharts.com/en-US/), an Apache-2.0 financial chart library. The API serves real exchange-specific historical OHLC bars: 15-minute candles for 5D and daily candles for 1M, 6M, and 1Y. The development data source is Yahoo Finance's chart endpoint, cached by the API for five minutes. It is an unofficial source; review data licensing and replace it with an approved feed before production use.
 
-```json
-{
-  "type": "subscribe",
-  "symbols": [{ "scripId": "3456", "exchangeType": "NSE", "scripType": "EQUITY" }]
-}
-```
+API calls use the checked-in OpenAPI types and credentialed cookies. A verified sign-in is followed by `GET /api/v1/me`, which provisions the practice account. Order requests use a UUID `Idempotency-Key`; retries for the same confirmation reuse the key.
 
-Unsubscribe:
-
-```json
-{
-  "type": "unsubscribe",
-  "symbols": [{ "scripId": "3456", "exchangeType": "NSE", "scripType": "EQUITY" }]
-}
-```
-
-**Server -> Client**
-
-On connect:
-
-```json
-{ "type": "connected", "maxSubscriptions": 100, "upstreamMode": "QUOTE" }
-```
-
-On updates:
-
-```json
-{
-  "type": "price",
-  "data": {
-    "instrumentKey": "NSE:EQUITY:3456",
-    "securityId": "3456",
-    "lastPrice": 123.45,
-    "providerTs": 1747700000,
-    "receivedAt": "2026-09-27T09:30:01.000Z"
-  }
-}
-```
-
-**Notes**
-
-- Use **one WebSocket per browser session** and multiplex subscriptions.
-- The server enforces `MAX_PRICE_SUBSCRIPTIONS` per connection (default `100`).
-- Reconnect on disconnect and re-send active subscriptions.
-- `providerTs`/`serverTs` are included for ordering/latency.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Run `bun run lint` and `bun run build` to check the frontend.
