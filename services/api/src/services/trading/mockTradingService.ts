@@ -541,7 +541,11 @@ export class DrizzleMockTradingService implements MockTradingService {
     ) {
       throw new HttpError(422, "QUOTE_UNAVAILABLE", "No usable latest quote.");
     }
-    assertPriceBand(instrument, quotePrice);
+    assertPriceBand(
+      instrument,
+      quotePrice,
+      quoteEnvelope.quote.ohlc?.close ?? null,
+    );
     const referencePrice = quotePrice;
 
     return this.database.transaction(async (tx) => {
@@ -1804,7 +1808,22 @@ function assertInstrumentRules(
   }
 }
 
-function assertPriceBand(instrument: InstrumentRecord, price: number) {
+function assertPriceBand(
+  instrument: InstrumentRecord,
+  price: number,
+  previousClose: number | null,
+) {
+  // Circuit limits come from the catalog snapshot and are set around the
+  // previous close. If that close is outside them, the snapshot is from an
+  // older session and its band would wrongly block today's prices.
+  const { lowerLimit, upperLimit } = instrument;
+  if (
+    previousClose != null &&
+    ((lowerLimit != null && previousClose < lowerLimit) ||
+      (upperLimit != null && previousClose > upperLimit))
+  ) {
+    return;
+  }
   if (instrument.lowerLimit != null && price < instrument.lowerLimit) {
     throw new HttpError(
       409,
