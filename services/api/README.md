@@ -22,6 +22,20 @@ Start the API:
 bun run dev
 ```
 
+The frontend runs at `http://localhost:3001` and calls this API at
+`http://localhost:5000`. In `.env`, set `PORT=5000`,
+`BETTER_AUTH_URL=http://localhost:5000`, and list every frontend origin in
+`APP_ORIGINS`, separated by commas. For example:
+
+```dotenv
+APP_ORIGINS=http://localhost:3001,http://127.0.0.1:3001
+```
+
+Use origins only (no paths, trailing slash is optional). Restart the API after
+changing `.env`. Check `curl http://localhost:5000/health` before diagnosing a
+browser CORS error; a failed connection also appears as a CORS failure in some
+browsers.
+
 Start the Paytm ingest worker in a second terminal:
 
 ```bash

@@ -65,6 +65,8 @@ export function buildApp(deps: AppDependencies) {
           "X-Device-Fingerprint",
         ],
         exposeHeaders: ["X-Request-Id"],
+        // Cache preflights for 10 minutes instead of the plugin's 5 seconds.
+        maxAge: 600,
       }),
     )
     .use(openapi())

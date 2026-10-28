@@ -51,8 +51,66 @@ function loadServiceConfig(): ServiceConfig {
     name: process.env.SERVICE_NAME ?? "mock-trader-api",
     port: asPositiveInt(process.env.PORT, 5000),
     publicUrl: process.env.API_PUBLIC_URL ?? "http://localhost:5000",
-    allowedOrigins: csv(process.env.APP_ORIGINS ?? "http://localhost:3001"),
+    allowedOrigins: withLoopbackAliases(
+      parseAllowedOrigins(process.env.APP_ORIGINS),
+    ),
   };
+}
+
+export function parseAllowedOrigins(value = "http://localhost:3001"): string[] {
+  const entries = csv(value);
+  if (entries.length === 0) {
+    throw new Error("APP_ORIGINS must contain at least one frontend origin");
+  }
+
+  return [
+    ...new Set(
+      entries.map((entry) => {
+        let url: URL;
+        try {
+          url = new URL(entry);
+        } catch {
+          throw new Error(`Invalid APP_ORIGINS entry: ${entry}`);
+        }
+        if (
+          !["http:", "https:"].includes(url.protocol) ||
+          url.username ||
+          url.password ||
+          url.pathname !== "/" ||
+          url.search ||
+          url.hash
+        ) {
+          throw new Error(
+            `APP_ORIGINS entries must be HTTP(S) origins without paths: ${entry}`,
+          );
+        }
+        return url.origin;
+      }),
+    ),
+  ];
+}
+
+const loopbackHosts = ["localhost", "127.0.0.1", "[::1]"];
+
+// Browsers treat localhost, 127.0.0.1 and [::1] as different origins. Allowing
+// one loopback origin also allows its aliases on the same scheme and port.
+export function withLoopbackAliases(origins: string[]): string[] {
+  const all = new Set(origins);
+  for (const origin of origins) {
+    const url = new URL(origin);
+    if (!loopbackHosts.includes(url.hostname)) continue;
+    for (const host of loopbackHosts) {
+      url.hostname = host;
+      all.add(url.origin);
+    }
+  }
+  return [...all];
+}
+
+function asSameSite(input: string | undefined): "lax" | "none" {
+  const value = (input ?? "lax").trim().toLowerCase();
+  if (value === "lax" || value === "none") return value;
+  throw new Error("AUTH_COOKIE_SAMESITE must be lax or none");
 }
 
 function csv(value: string) {
@@ -224,11 +282,19 @@ export function loadDatabaseEnv(): DBConfig {
 
 export function loadAuthEnv(): AuthEnv {
   const baseUrl = required("BETTER_AUTH_URL");
+  const sameSite = asSameSite(process.env.AUTH_COOKIE_SAMESITE);
   return {
     baseUrl,
     secret: required("BETTER_AUTH_SECRET"),
-    trustedOrigins: csv(process.env.APP_ORIGINS ?? "http://localhost:3001"),
-    secureCookies: baseUrl.startsWith("https://"),
+    // Frontend origins plus the API's own origin (OAuth callbacks land there).
+    trustedOrigins: withLoopbackAliases([
+      ...parseAllowedOrigins(process.env.APP_ORIGINS),
+      new URL(baseUrl).origin,
+    ]),
+    // SameSite=None is only needed when the frontend and API are on different
+    // sites (not just different subdomains or ports); browsers require Secure with it.
+    cookieSameSite: sameSite,
+    secureCookies: baseUrl.startsWith("https://") || sameSite === "none",
     google: loadGoogleOAuthConfig(),
   };
 }

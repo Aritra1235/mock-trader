@@ -13,6 +13,7 @@ test("app exposes health, instrument search, and quotes", async () => {
     service: {
       name: "mock-trader-api",
       port: 5000,
+      allowedOrigins: ["http://localhost:3001", "http://127.0.0.1:3001"],
     },
     redis: {
       url: "redis://localhost:6379",
@@ -129,6 +130,22 @@ test("app exposes health, instrument search, and quotes", async () => {
   );
   const health = await healthResponse.json();
   expect(health.status).toBe("ok");
+
+  for (const origin of env.service.allowedOrigins ?? []) {
+    const preflight = await app.handle(
+      new Request("http://localhost/api/v1/me", {
+        method: "OPTIONS",
+        headers: {
+          Origin: origin,
+          "Access-Control-Request-Method": "GET",
+        },
+      }),
+    );
+    expect(preflight.headers.get("access-control-allow-origin")).toBe(origin);
+    expect(preflight.headers.get("access-control-allow-credentials")).toBe(
+      "true",
+    );
+  }
 
   const docsResponse = await app.handle(new Request("http://localhost/docs"));
   expect(docsResponse.status).toBe(302);

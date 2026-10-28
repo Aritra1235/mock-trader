@@ -10,8 +10,11 @@ The frozen MVP decisions live in [`MVP_SCOPE.md`](../../../MVP_SCOPE.md).
 - WebSocket: `ws://localhost:5000/ws/market`
 
 Set `credentials: "include"` on browser HTTP requests. Configure the exact
-frontend origin in `APP_ORIGINS`; wildcard origins are not supported with
-credentialed cookies.
+frontend origins as a comma-separated `APP_ORIGINS` list, for example
+`APP_ORIGINS=http://localhost:3001,http://127.0.0.1:3001`. Each entry must be
+an HTTP(S) origin without a path; wildcard origins are not supported with
+credentialed cookies. `NEXT_PUBLIC_API_URL` in the frontend must point to the
+API's actual host and port. Restart the API after changing its `.env`.
 
 ## Bootstrap and onboarding
 

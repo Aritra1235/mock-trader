@@ -101,6 +101,7 @@ export interface AuthEnv {
   baseUrl: string;
   secret: string;
   trustedOrigins: string[];
+  cookieSameSite: "lax" | "none";
   secureCookies: boolean;
   google: GoogleOAuthConfig;
 }
