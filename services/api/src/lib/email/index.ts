@@ -1,3 +1,5 @@
+import { log } from "../log";
+
 async function sendEmail({
   to,
   subject,
@@ -9,7 +11,7 @@ async function sendEmail({
 }) {
   const provider = process.env.EMAIL_PROVIDER ?? "console";
   if (provider === "console" && process.env.NODE_ENV !== "production") {
-    console.info({ to, subject, text }, "Development email");
+    log.info("dev email", { to, subject, text });
     return;
   }
   if (provider !== "resend") {

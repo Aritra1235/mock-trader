@@ -8,6 +8,18 @@ The browser calls the API directly at `NEXT_PUBLIC_API_URL` (default `http://loc
 
 `localhost` and `127.0.0.1` are different sites to the browser, so when both the page and the configured API host are loopback, the app calls the API on the page's own loopback name to keep the session cookie same-site. To open the dev server from another hostname, add it to `DEV_ORIGINS`.
 
+## Sign-up and onboarding
+
+Signed-out users see the auth screen: sign in, create an account, verify the
+email with a 6-digit code, or reset a password with a code. A verified user
+who hasn't finished onboarding gets the full-page setup flow in
+`src/components/onboarding.tsx` instead of the terminal: personal details,
+experience, goals and starting capital, a first watchlist, terms and risk
+disclosure, then review. The API rejects account and market-data calls until
+it's done, so the provider only starts loading quotes and portfolio data once
+`/me` reports onboarding complete. The watchlist picked during onboarding
+seeds the user's watchlist, which is stored per user in `localStorage`.
+
 ## Theme
 
 Light and dark themes follow the OS setting until the user picks one with the sun/moon button in the top bar; the choice is stored in `localStorage` (`mock-trader-theme`). Colours are CSS variables in `globals.css`, with the dark values under `:root[data-theme="dark"]`.

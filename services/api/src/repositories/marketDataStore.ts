@@ -1,4 +1,5 @@
 import { createClient, type RedisClientType } from "redis";
+import { log } from "../lib/log";
 import type { CandleRecord, QuoteEvent, QuotePayload } from "../types/market";
 
 export interface MarketDataStore {
@@ -42,10 +43,10 @@ export class RedisMarketDataStore implements MarketDataStore {
     });
     this.subscriberClient = this.commandClient.duplicate();
     this.commandClient.on("error", (error) =>
-      console.error("Redis market store error", error),
+      log.error("redis market store error", { error }),
     );
     this.subscriberClient.on("error", (error) =>
-      console.error("Redis market subscriber error", error),
+      log.error("redis market subscriber error", { error }),
     );
   }
 

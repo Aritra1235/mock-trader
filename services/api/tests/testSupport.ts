@@ -1,7 +1,12 @@
 import type { PaytmHttpClient } from "../src/providers/paytmHttpClient";
 import type { MarketDataStore } from "../src/repositories/marketDataStore";
 import type { SubscriptionLeaseRepository } from "../src/repositories/subscriptionLeaseRepository";
+import type {
+  AuthSessionResult,
+  AuthSessionService,
+} from "../src/services/authSessionService";
 import { CatalogService } from "../src/services/catalogService";
+import type { OnboardingService } from "../src/services/onboarding/onboardingService";
 import type {
   CandleRecord,
   QuoteEvent,
@@ -156,4 +161,67 @@ export class InMemoryLeases implements SubscriptionLeaseRepository {
   }
 
   async disconnect() {}
+}
+
+/** Onboarding stub: users in `completeUsers` count as onboarded. */
+export class FakeOnboardingService implements OnboardingService {
+  calls: unknown[][] = [];
+
+  constructor(readonly completeUsers = new Set<string>()) {}
+
+  async isComplete(userId: string) {
+    return this.completeUsers.has(userId);
+  }
+
+  async summary(userId: string) {
+    const complete = this.completeUsers.has(userId);
+    return {
+      complete,
+      currentStep: complete ? null : ("profile" as const),
+      watchlist: [],
+    };
+  }
+
+  private record(name: string, userId: string, input?: unknown) {
+    this.calls.push(
+      input === undefined ? [name, userId] : [name, userId, input],
+    );
+    return { complete: this.completeUsers.has(userId) } as never;
+  }
+
+  async getState(userId: string) {
+    return this.record("getState", userId);
+  }
+  async saveProfile(userId: string, input: unknown) {
+    return this.record("saveProfile", userId, input);
+  }
+  async saveExperience(userId: string, input: unknown) {
+    return this.record("saveExperience", userId, input);
+  }
+  async savePreferences(userId: string, input: unknown) {
+    return this.record("savePreferences", userId, input);
+  }
+  async saveWatchlist(userId: string, input: unknown) {
+    return this.record("saveWatchlist", userId, input);
+  }
+  async acceptAgreements(userId: string, input: unknown) {
+    return this.record("acceptAgreements", userId, input);
+  }
+  async complete(userId: string) {
+    this.completeUsers.add(userId);
+    return this.record("complete", userId);
+  }
+}
+
+/** Auth stub that always returns the given user (or no session). */
+export class FakeAuthSessionService implements AuthSessionService {
+  constructor(private readonly userId: string | null) {}
+
+  async getSession(): Promise<AuthSessionResult | null> {
+    if (!this.userId) return null;
+    return {
+      user: { id: this.userId, role: "user", banned: false },
+      session: { id: "session-1" },
+    };
+  }
 }

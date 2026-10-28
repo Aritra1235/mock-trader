@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { marketSession } from "@/lib/market";
 import { AuthScreen } from "./auth-screen";
+import { Onboarding } from "./onboarding";
 import { OrderWindow } from "./order-window";
 import { ThemeToggle } from "./theme-toggle";
 import { useTrader } from "./trader-provider";
@@ -28,6 +29,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   if (trader.auth === "unauthorized" || trader.auth === "verify")
     return <AuthScreen state={trader.auth} onSuccess={trader.refresh} />;
+  if (trader.auth === "onboarding") return <Onboarding />;
 
   const active = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);

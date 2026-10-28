@@ -2739,6 +2739,120 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/onboarding": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description Onboarding progress, saved answers and the options for every step. Every account, order and market-data API returns 403 ONBOARDING_REQUIRED until onboarding is complete. */
+    get: operations["getOnboarding"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/onboarding/profile": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["saveOnboardingProfile"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/onboarding/experience": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["saveOnboardingExperience"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/onboarding/preferences": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["saveOnboardingPreferences"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/onboarding/watchlist": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["saveOnboardingWatchlist"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/onboarding/agreements": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["acceptOnboardingAgreements"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/onboarding/complete": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** @description Opens the practice account with the chosen starting capital once every step is done. */
+    post: operations["completeOnboarding"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/me/accounts": {
     parameters: {
       query?: never;
@@ -2858,6 +2972,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
+    /** @description Requires a signed-in user who has completed onboarding. */
     get: operations["marketStats"];
     put?: never;
     post?: never;
@@ -2874,6 +2989,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
+    /** @description Requires a signed-in user who has completed onboarding. */
     get: operations["searchInstruments"];
     put?: never;
     post?: never;
@@ -2890,6 +3006,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
+    /** @description Requires a signed-in user who has completed onboarding. */
     get: operations["getInstrument"];
     put?: never;
     post?: never;
@@ -2922,6 +3039,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
+    /** @description Requires a signed-in user who has completed onboarding. */
     get: operations["getQuotes"];
     put?: never;
     post?: never;
@@ -3079,9 +3197,7 @@ export interface components {
       capabilities: {
         [key: string]: unknown;
       };
-      onboarding: {
-        [key: string]: unknown;
-      };
+      onboarding: components["schemas"]["OnboardingSummary"];
       accounts: components["schemas"]["PublicAccount"][];
       /** @constant */
       currency: "INR";
@@ -3091,6 +3207,142 @@ export interface components {
       executionPolicy: {
         [key: string]: unknown;
       };
+    };
+    OnboardingSummary: {
+      complete: boolean;
+      /** @enum {string|null} */
+      currentStep:
+        | "profile"
+        | "experience"
+        | "preferences"
+        | "watchlist"
+        | "agreements"
+        | "review"
+        | null;
+      watchlist: components["schemas"]["OnboardingInstrument"][];
+    };
+    OnboardingInstrument: {
+      instrumentKey: string;
+      symbol: string;
+      name: string;
+      exchange: string;
+      scripType: string;
+      lotSize?: number | null;
+      tickSize?: number | null;
+    };
+    OnboardingOption: {
+      value: string;
+      label: string;
+      description?: string;
+    };
+    OnboardingState: {
+      /** @enum {unknown} */
+      status: "in_progress" | "completed";
+      complete: boolean;
+      emailVerified: boolean;
+      /** @enum {string|null} */
+      currentStep:
+        | "profile"
+        | "experience"
+        | "preferences"
+        | "watchlist"
+        | "agreements"
+        | "review"
+        | null;
+      /** Format: date-time */
+      completedAt: string | null;
+      existingAccount: {
+        accountNumber: string;
+        startingBalance: number;
+      } | null;
+      steps: {
+        /** @enum {unknown} */
+        id:
+          | "profile"
+          | "experience"
+          | "preferences"
+          | "watchlist"
+          | "agreements"
+          | "review";
+        title: string;
+        description: string;
+        complete: boolean;
+      }[];
+      data: {
+        fullName: string;
+        email: string;
+        /** Format: date */
+        dateOfBirth: string | null;
+        phone: string | null;
+        city: string | null;
+        state: string | null;
+        occupation: string | null;
+        experienceLevel: string | null;
+        instrumentsTraded: string[];
+        tradingStyle: string | null;
+        tradingGoals: string[];
+        riskAppetite: string | null;
+        startingCapital: number | null;
+        watchlist: components["schemas"]["OnboardingInstrument"][];
+        termsVersion: string | null;
+        /** Format: date-time */
+        termsAcceptedAt: string | null;
+        /** Format: date-time */
+        riskDisclosureAcceptedAt: string | null;
+      };
+      options: {
+        occupations: components["schemas"]["OnboardingOption"][];
+        experienceLevels: components["schemas"]["OnboardingOption"][];
+        instruments: components["schemas"]["OnboardingOption"][];
+        tradingStyles: components["schemas"]["OnboardingOption"][];
+        goals: components["schemas"]["OnboardingOption"][];
+        riskAppetites: components["schemas"]["OnboardingOption"][];
+        startingCapitals: {
+          value: number;
+          label: string;
+        }[];
+        states: string[];
+        minimumAge: number;
+        maxWatchlist: number;
+        suggestedInstruments: components["schemas"]["OnboardingInstrument"][];
+        terms: {
+          version: string;
+          sections: {
+            id: string;
+            title: string;
+            points: string[];
+          }[];
+        };
+      };
+    };
+    OnboardingProfileInput: {
+      fullName: string;
+      /** Format: date */
+      dateOfBirth: string;
+      phone?: string | null;
+      city: string;
+      state: string;
+      occupation: string;
+    };
+    OnboardingExperienceInput: {
+      experienceLevel: string;
+      instrumentsTraded: string[];
+      tradingStyle: string;
+    };
+    OnboardingPreferencesInput: {
+      tradingGoals: string[];
+      riskAppetite: string;
+      startingCapital: number;
+    };
+    OnboardingWatchlistInput: {
+      instrumentIds: string[];
+    };
+    OnboardingAgreementsInput: {
+      termsVersion: string;
+      /** @constant */
+      acceptTerms: true;
+      /** @constant */
+      acceptRiskDisclosure: true;
     };
     ProvisionAccountResponse: {
       account: components["schemas"]["PublicAccount"];
@@ -7507,6 +7759,191 @@ export interface operations {
       403: components["responses"]["Forbidden"];
     };
   };
+  getOnboarding: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OnboardingState"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+    };
+  };
+  saveOnboardingProfile: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["OnboardingProfileInput"];
+      };
+    };
+    responses: {
+      /** @description Successful response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OnboardingState"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      409: components["responses"]["Conflict"];
+      422: components["responses"]["Unprocessable"];
+    };
+  };
+  saveOnboardingExperience: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["OnboardingExperienceInput"];
+      };
+    };
+    responses: {
+      /** @description Successful response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OnboardingState"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      409: components["responses"]["Conflict"];
+      422: components["responses"]["Unprocessable"];
+    };
+  };
+  saveOnboardingPreferences: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["OnboardingPreferencesInput"];
+      };
+    };
+    responses: {
+      /** @description Successful response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OnboardingState"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      409: components["responses"]["Conflict"];
+      422: components["responses"]["Unprocessable"];
+    };
+  };
+  saveOnboardingWatchlist: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["OnboardingWatchlistInput"];
+      };
+    };
+    responses: {
+      /** @description Successful response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OnboardingState"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      409: components["responses"]["Conflict"];
+      422: components["responses"]["Unprocessable"];
+    };
+  };
+  acceptOnboardingAgreements: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["OnboardingAgreementsInput"];
+      };
+    };
+    responses: {
+      /** @description Successful response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OnboardingState"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      409: components["responses"]["Conflict"];
+      422: components["responses"]["Unprocessable"];
+    };
+  };
+  completeOnboarding: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OnboardingState"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      409: components["responses"]["Conflict"];
+    };
+  };
   ensurePracticeAccount: {
     parameters: {
       query?: never;
@@ -7731,6 +8168,8 @@ export interface operations {
         };
       };
       400: components["responses"]["InvalidRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
       404: components["responses"]["NotFound"];
     };
   };
@@ -7758,6 +8197,8 @@ export interface operations {
         };
       };
       400: components["responses"]["InvalidRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
       404: components["responses"]["NotFound"];
     };
   };
@@ -7782,6 +8223,8 @@ export interface operations {
         };
       };
       400: components["responses"]["InvalidRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
       404: components["responses"]["NotFound"];
     };
   };
@@ -7841,6 +8284,8 @@ export interface operations {
         };
       };
       400: components["responses"]["InvalidRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
       404: components["responses"]["NotFound"];
     };
   };

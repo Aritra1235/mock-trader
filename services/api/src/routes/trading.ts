@@ -1,10 +1,12 @@
 import { apiVersion } from "../config/const";
 import { MVP_PRODUCT } from "../config/product";
+import { log } from "../lib/log";
 import { requestIdFor } from "../lib/requestId";
 import type {
   AuthSessionResult,
   AuthSessionService,
 } from "../services/authSessionService";
+import type { OnboardingService } from "../services/onboarding/onboardingService";
 import {
   type CancelOrderInput,
   type CreateOrderInput,
@@ -18,6 +20,7 @@ import {
 export interface TradingRouteDependencies {
   authSession: AuthSessionService;
   trading: MockTradingService;
+  onboarding: OnboardingService;
 }
 
 export function registerTradingRoutes<T>(
@@ -29,27 +32,81 @@ export function registerTradingRoutes<T>(
 
   router
     .get(`${route}/me`, async (context: RouteContext) =>
-      handleAuthenticated(context, deps, async (session) =>
-        deps.trading.getMe(session.user.id),
+      handleAuthenticated(context, deps, async (session) => {
+        const [me, onboarding] = await Promise.all([
+          deps.trading.getMe(session.user.id) as Promise<{
+            capabilities: { canTrade: boolean; canUseAdmin: boolean };
+          }>,
+          deps.onboarding.summary(session.user.id),
+        ]);
+        return {
+          ...me,
+          capabilities: {
+            ...me.capabilities,
+            canTrade: me.capabilities.canTrade && onboarding.complete,
+          },
+          onboarding,
+        };
+      }),
+    )
+    // Onboarding: the only account-level API open to a signed-in user who
+    // hasn't finished it.
+    .get(`${route}/onboarding`, async (context: RouteContext) =>
+      handleAuthenticated(context, deps, (session) =>
+        deps.onboarding.getState(session.user.id),
+      ),
+    )
+    .post(`${route}/onboarding/profile`, async (context: RouteContext) =>
+      handleAuthenticated(context, deps, (session) =>
+        deps.onboarding.saveProfile(session.user.id, context.body),
+      ),
+    )
+    .post(`${route}/onboarding/experience`, async (context: RouteContext) =>
+      handleAuthenticated(context, deps, (session) =>
+        deps.onboarding.saveExperience(session.user.id, context.body),
+      ),
+    )
+    .post(`${route}/onboarding/preferences`, async (context: RouteContext) =>
+      handleAuthenticated(context, deps, (session) =>
+        deps.onboarding.savePreferences(session.user.id, context.body),
+      ),
+    )
+    .post(`${route}/onboarding/watchlist`, async (context: RouteContext) =>
+      handleAuthenticated(context, deps, (session) =>
+        deps.onboarding.saveWatchlist(session.user.id, context.body),
+      ),
+    )
+    .post(`${route}/onboarding/agreements`, async (context: RouteContext) =>
+      handleAuthenticated(context, deps, (session) =>
+        deps.onboarding.acceptAgreements(
+          session.user.id,
+          context.body,
+          requestContext(context.request, session),
+        ),
+      ),
+    )
+    .post(`${route}/onboarding/complete`, async (context: RouteContext) =>
+      handleAuthenticated(context, deps, (session) =>
+        deps.onboarding.complete(session.user.id),
       ),
     )
     .post(`${route}/me/accounts`, async (context: RouteContext) =>
-      handleAuthenticated(context, deps, async (session) =>
+      handleOnboarded(context, deps, async (session) =>
         deps.trading.ensurePracticeAccount(session.user.id),
       ),
     )
     .get(`${route}/me/portfolio`, async (context: RouteContext) =>
-      handleAuthenticated(context, deps, async (session) =>
+      handleOnboarded(context, deps, async (session) =>
         deps.trading.getPortfolio(session.user.id),
       ),
     )
     .get(`${route}/accounts/:id`, async (context: RouteContext) =>
-      handleAuthenticated(context, deps, async (session) =>
+      handleOnboarded(context, deps, async (session) =>
         deps.trading.getAccount(session.user.id, context.params.id),
       ),
     )
     .get(`${route}/accounts/:id/activity`, async (context: RouteContext) =>
-      handleAuthenticated(context, deps, async (session) =>
+      handleOnboarded(context, deps, async (session) =>
         deps.trading.listAccountActivity(
           session.user.id,
           context.params.id,
@@ -58,12 +115,12 @@ export function registerTradingRoutes<T>(
       ),
     )
     .get(`${route}/accounts/:id/positions`, async (context: RouteContext) =>
-      handleAuthenticated(context, deps, async (session) =>
+      handleOnboarded(context, deps, async (session) =>
         deps.trading.listPositions(session.user.id, context.params.id),
       ),
     )
     .get(`${route}/accounts/:id/orders`, async (context: RouteContext) =>
-      handleAuthenticated(context, deps, async (session) =>
+      handleOnboarded(context, deps, async (session) =>
         deps.trading.listOrders(
           session.user.id,
           context.params.id,
@@ -72,7 +129,7 @@ export function registerTradingRoutes<T>(
       ),
     )
     .get(`${route}/accounts/:id/trades`, async (context: RouteContext) =>
-      handleAuthenticated(context, deps, async (session) =>
+      handleOnboarded(context, deps, async (session) =>
         deps.trading.listTrades(
           session.user.id,
           context.params.id,
@@ -91,7 +148,7 @@ export function registerTradingRoutes<T>(
       ),
     )
     .post(`${route}/orders/:id/cancel`, async (context: RouteContext) =>
-      handleAuthenticated(context, deps, async (session) =>
+      handleOnboarded(context, deps, async (session) =>
         deps.trading.cancelOrder(
           session.user.id,
           context.params.id,
@@ -184,8 +241,23 @@ async function handleAuthenticated<T>(
   deps: TradingRouteDependencies,
   action: (session: AuthSessionResult) => Promise<T>,
 ) {
+  let session: AuthSessionResult | null;
   try {
-    const session = await deps.authSession.getSession(context.request);
+    session = await deps.authSession.getSession(context.request);
+  } catch (error) {
+    log.error("session lookup failed", {
+      path: new URL(context.request.url).pathname,
+      requestId: requestIdFor(context.request),
+      error,
+    });
+    context.set.status = 503;
+    return errorResponse(
+      context.request,
+      "SERVICE_UNAVAILABLE",
+      "The service is temporarily unavailable. Try again shortly.",
+    );
+  }
+  try {
     if (!session?.user || session.user.banned) {
       context.set.status = 401;
       return errorResponse(
@@ -198,6 +270,24 @@ async function handleAuthenticated<T>(
   } catch (error) {
     return handleRouteError(context, error);
   }
+}
+
+async function handleOnboarded<T>(
+  context: RouteContext,
+  deps: TradingRouteDependencies,
+  action: (session: AuthSessionResult) => Promise<T>,
+) {
+  return handleAuthenticated(context, deps, async (session) => {
+    if (!(await deps.onboarding.isComplete(session.user.id))) {
+      context.set.status = 403;
+      return errorResponse(
+        context.request,
+        "ONBOARDING_REQUIRED",
+        "Finish onboarding to open your practice account first.",
+      );
+    }
+    return action(session);
+  });
 }
 
 async function handleAdmin<T>(
@@ -223,7 +313,7 @@ async function handleTrading<T>(
   deps: TradingRouteDependencies,
   action: (session: AuthSessionResult) => Promise<T>,
 ) {
-  return handleAuthenticated(context, deps, async (session) => {
+  return handleOnboarded(context, deps, async (session) => {
     if (session.user.tradingStatus && session.user.tradingStatus !== "active") {
       context.set.status = 403;
       return errorResponse(
@@ -242,6 +332,12 @@ function handleRouteError(context: RouteContext, error: unknown) {
     return errorResponse(context.request, error.error, error.message);
   }
 
+  log.error("route error", {
+    method: context.request.method,
+    path: new URL(context.request.url).pathname,
+    requestId: requestIdFor(context.request),
+    error,
+  });
   context.set.status = 500;
   return errorResponse(
     context.request,

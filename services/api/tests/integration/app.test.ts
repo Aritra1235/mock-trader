@@ -6,7 +6,13 @@ import type { PaytmHttpClient } from "../../src/providers/paytmHttpClient";
 import { MarketDataService } from "../../src/services/marketDataService";
 import { PaytmSessionService } from "../../src/services/paytmSessionService";
 import { MarketGateway } from "../../src/ws/marketGateway";
-import { InMemoryLeases, InMemoryStore, makeCatalog } from "../testSupport";
+import {
+  FakeAuthSessionService,
+  FakeOnboardingService,
+  InMemoryLeases,
+  InMemoryStore,
+  makeCatalog,
+} from "../testSupport";
 
 test("app exposes health, instrument search, and quotes", async () => {
   const env: AppEnv = {
@@ -123,6 +129,9 @@ test("app exposes health, instrument search, and quotes", async () => {
     gateway,
     store,
     leases,
+    // Market data requires an onboarded session.
+    authSession: new FakeAuthSessionService("user-1"),
+    onboarding: new FakeOnboardingService(new Set(["user-1"])),
     history: async (instrument, range) => ({
       instrumentKey: instrument.instrumentKey,
       symbol: instrument.symbol,

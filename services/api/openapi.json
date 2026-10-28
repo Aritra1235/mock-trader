@@ -8944,6 +8944,294 @@
         }
       }
     },
+    "/api/v1/onboarding": {
+      "get": {
+        "tags": ["Onboarding"],
+        "operationId": "getOnboarding",
+        "description": "Onboarding progress, saved answers and the options for every step. Every account, order and market-data API returns 403 ONBOARDING_REQUIRED until onboarding is complete.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingState"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/v1/onboarding/profile": {
+      "post": {
+        "tags": ["Onboarding"],
+        "operationId": "saveOnboardingProfile",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OnboardingProfileInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingState"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          }
+        }
+      }
+    },
+    "/api/v1/onboarding/experience": {
+      "post": {
+        "tags": ["Onboarding"],
+        "operationId": "saveOnboardingExperience",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OnboardingExperienceInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingState"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          }
+        }
+      }
+    },
+    "/api/v1/onboarding/preferences": {
+      "post": {
+        "tags": ["Onboarding"],
+        "operationId": "saveOnboardingPreferences",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OnboardingPreferencesInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingState"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          }
+        }
+      }
+    },
+    "/api/v1/onboarding/watchlist": {
+      "post": {
+        "tags": ["Onboarding"],
+        "operationId": "saveOnboardingWatchlist",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OnboardingWatchlistInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingState"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          }
+        }
+      }
+    },
+    "/api/v1/onboarding/agreements": {
+      "post": {
+        "tags": ["Onboarding"],
+        "operationId": "acceptOnboardingAgreements",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OnboardingAgreementsInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingState"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          }
+        }
+      }
+    },
+    "/api/v1/onboarding/complete": {
+      "post": {
+        "tags": ["Onboarding"],
+        "operationId": "completeOnboarding",
+        "description": "Opens the practice account with the chosen starting capital once every step is done.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingState"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      }
+    },
     "/api/v1/me/accounts": {
       "post": {
         "tags": ["Onboarding"],
@@ -9281,6 +9569,12 @@
       "get": {
         "tags": ["Market Data"],
         "operationId": "marketStats",
+        "description": "Requires a signed-in user who has completed onboarding.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
         "parameters": [],
         "responses": {
           "200": {
@@ -9296,6 +9590,12 @@
           "400": {
             "$ref": "#/components/responses/InvalidRequest"
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           }
@@ -9306,6 +9606,12 @@
       "get": {
         "tags": ["Market Data"],
         "operationId": "searchInstruments",
+        "description": "Requires a signed-in user who has completed onboarding.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
         "parameters": [
           {
             "name": "q",
@@ -9357,6 +9663,12 @@
           "400": {
             "$ref": "#/components/responses/InvalidRequest"
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           }
@@ -9367,6 +9679,12 @@
       "get": {
         "tags": ["Market Data"],
         "operationId": "getInstrument",
+        "description": "Requires a signed-in user who has completed onboarding.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
         "parameters": [
           {
             "$ref": "#/components/parameters/InstrumentId"
@@ -9386,6 +9704,12 @@
           "400": {
             "$ref": "#/components/responses/InvalidRequest"
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           }
@@ -9396,6 +9720,11 @@
       "get": {
         "tags": ["Market Data"],
         "operationId": "getInstrumentHistory",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
         "parameters": [
           {
             "$ref": "#/components/parameters/InstrumentId"
@@ -9439,6 +9768,12 @@
       "get": {
         "tags": ["Market Data"],
         "operationId": "getQuotes",
+        "description": "Requires a signed-in user who has completed onboarding.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
         "parameters": [
           {
             "name": "ids",
@@ -9470,6 +9805,12 @@
           },
           "400": {
             "$ref": "#/components/responses/InvalidRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -9893,8 +10234,7 @@
             "additionalProperties": true
           },
           "onboarding": {
-            "type": "object",
-            "additionalProperties": true
+            "$ref": "#/components/schemas/OnboardingSummary"
           },
           "accounts": {
             "type": "array",
@@ -9914,6 +10254,455 @@
           "executionPolicy": {
             "type": "object",
             "additionalProperties": true
+          }
+        }
+      },
+      "OnboardingSummary": {
+        "type": "object",
+        "required": ["complete", "currentStep", "watchlist"],
+        "properties": {
+          "complete": {
+            "type": "boolean"
+          },
+          "currentStep": {
+            "type": ["string", "null"],
+            "enum": [
+              "profile",
+              "experience",
+              "preferences",
+              "watchlist",
+              "agreements",
+              "review",
+              null
+            ]
+          },
+          "watchlist": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OnboardingInstrument"
+            }
+          }
+        }
+      },
+      "OnboardingInstrument": {
+        "type": "object",
+        "required": [
+          "instrumentKey",
+          "symbol",
+          "name",
+          "exchange",
+          "scripType"
+        ],
+        "properties": {
+          "instrumentKey": {
+            "type": "string"
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "exchange": {
+            "type": "string"
+          },
+          "scripType": {
+            "type": "string"
+          },
+          "lotSize": {
+            "type": ["number", "null"]
+          },
+          "tickSize": {
+            "type": ["number", "null"]
+          }
+        }
+      },
+      "OnboardingOption": {
+        "type": "object",
+        "required": ["value", "label"],
+        "properties": {
+          "value": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      },
+      "OnboardingState": {
+        "type": "object",
+        "required": [
+          "status",
+          "complete",
+          "emailVerified",
+          "currentStep",
+          "steps",
+          "completedAt",
+          "existingAccount",
+          "data",
+          "options"
+        ],
+        "properties": {
+          "status": {
+            "enum": ["in_progress", "completed"]
+          },
+          "complete": {
+            "type": "boolean"
+          },
+          "emailVerified": {
+            "type": "boolean"
+          },
+          "currentStep": {
+            "type": ["string", "null"],
+            "enum": [
+              "profile",
+              "experience",
+              "preferences",
+              "watchlist",
+              "agreements",
+              "review",
+              null
+            ]
+          },
+          "completedAt": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "existingAccount": {
+            "type": ["object", "null"],
+            "required": ["accountNumber", "startingBalance"],
+            "properties": {
+              "accountNumber": {
+                "type": "string"
+              },
+              "startingBalance": {
+                "type": "number"
+              }
+            }
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "title", "description", "complete"],
+              "properties": {
+                "id": {
+                  "enum": [
+                    "profile",
+                    "experience",
+                    "preferences",
+                    "watchlist",
+                    "agreements",
+                    "review"
+                  ]
+                },
+                "title": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "complete": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "fullName",
+              "email",
+              "dateOfBirth",
+              "phone",
+              "city",
+              "state",
+              "occupation",
+              "experienceLevel",
+              "instrumentsTraded",
+              "tradingStyle",
+              "tradingGoals",
+              "riskAppetite",
+              "startingCapital",
+              "watchlist",
+              "termsVersion",
+              "termsAcceptedAt",
+              "riskDisclosureAcceptedAt"
+            ],
+            "properties": {
+              "fullName": {
+                "type": "string"
+              },
+              "email": {
+                "type": "string"
+              },
+              "dateOfBirth": {
+                "type": ["string", "null"],
+                "format": "date"
+              },
+              "phone": {
+                "type": ["string", "null"]
+              },
+              "city": {
+                "type": ["string", "null"]
+              },
+              "state": {
+                "type": ["string", "null"]
+              },
+              "occupation": {
+                "type": ["string", "null"]
+              },
+              "experienceLevel": {
+                "type": ["string", "null"]
+              },
+              "instrumentsTraded": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "tradingStyle": {
+                "type": ["string", "null"]
+              },
+              "tradingGoals": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "riskAppetite": {
+                "type": ["string", "null"]
+              },
+              "startingCapital": {
+                "type": ["number", "null"]
+              },
+              "watchlist": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/OnboardingInstrument"
+                }
+              },
+              "termsVersion": {
+                "type": ["string", "null"]
+              },
+              "termsAcceptedAt": {
+                "type": ["string", "null"],
+                "format": "date-time"
+              },
+              "riskDisclosureAcceptedAt": {
+                "type": ["string", "null"],
+                "format": "date-time"
+              }
+            }
+          },
+          "options": {
+            "type": "object",
+            "required": [
+              "occupations",
+              "experienceLevels",
+              "instruments",
+              "tradingStyles",
+              "goals",
+              "riskAppetites",
+              "startingCapitals",
+              "states",
+              "minimumAge",
+              "maxWatchlist",
+              "suggestedInstruments",
+              "terms"
+            ],
+            "properties": {
+              "occupations": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/OnboardingOption"
+                }
+              },
+              "experienceLevels": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/OnboardingOption"
+                }
+              },
+              "instruments": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/OnboardingOption"
+                }
+              },
+              "tradingStyles": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/OnboardingOption"
+                }
+              },
+              "goals": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/OnboardingOption"
+                }
+              },
+              "riskAppetites": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/OnboardingOption"
+                }
+              },
+              "startingCapitals": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["value", "label"],
+                  "properties": {
+                    "value": {
+                      "type": "number"
+                    },
+                    "label": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "states": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "minimumAge": {
+                "type": "integer"
+              },
+              "maxWatchlist": {
+                "type": "integer"
+              },
+              "suggestedInstruments": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/OnboardingInstrument"
+                }
+              },
+              "terms": {
+                "type": "object",
+                "required": ["version", "sections"],
+                "properties": {
+                  "version": {
+                    "type": "string"
+                  },
+                  "sections": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": ["id", "title", "points"],
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "points": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "OnboardingProfileInput": {
+        "type": "object",
+        "required": ["fullName", "dateOfBirth", "city", "state", "occupation"],
+        "properties": {
+          "fullName": {
+            "type": "string"
+          },
+          "dateOfBirth": {
+            "type": "string",
+            "format": "date"
+          },
+          "phone": {
+            "type": ["string", "null"]
+          },
+          "city": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "occupation": {
+            "type": "string"
+          }
+        }
+      },
+      "OnboardingExperienceInput": {
+        "type": "object",
+        "required": ["experienceLevel", "instrumentsTraded", "tradingStyle"],
+        "properties": {
+          "experienceLevel": {
+            "type": "string"
+          },
+          "instrumentsTraded": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "tradingStyle": {
+            "type": "string"
+          }
+        }
+      },
+      "OnboardingPreferencesInput": {
+        "type": "object",
+        "required": ["tradingGoals", "riskAppetite", "startingCapital"],
+        "properties": {
+          "tradingGoals": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "riskAppetite": {
+            "type": "string"
+          },
+          "startingCapital": {
+            "type": "number"
+          }
+        }
+      },
+      "OnboardingWatchlistInput": {
+        "type": "object",
+        "required": ["instrumentIds"],
+        "properties": {
+          "instrumentIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "OnboardingAgreementsInput": {
+        "type": "object",
+        "required": ["termsVersion", "acceptTerms", "acceptRiskDisclosure"],
+        "properties": {
+          "termsVersion": {
+            "type": "string"
+          },
+          "acceptTerms": {
+            "const": true
+          },
+          "acceptRiskDisclosure": {
+            "const": true
           }
         }
       },

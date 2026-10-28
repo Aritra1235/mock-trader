@@ -1,6 +1,6 @@
 import { Buffer } from "node:buffer";
 import { and, desc, eq, inArray, lt, or } from "drizzle-orm";
-import { INITIAL_PRACTICE_BALANCE, MVP_PRODUCT } from "../../config/product";
+import { MVP_PRODUCT } from "../../config/product";
 import { type Database, db } from "../../db";
 import {
   accountRiskReviews,
@@ -87,7 +87,10 @@ export interface ResolveInput {
 
 export interface MockTradingService {
   getMe(userId: string): Promise<unknown>;
-  ensurePracticeAccount(userId: string): Promise<unknown>;
+  ensurePracticeAccount(
+    userId: string,
+    options?: { startingBalance?: number },
+  ): Promise<unknown>;
   getAccount(userId: string, accountId: string): Promise<unknown>;
   listAccountActivity(
     userId: string,
@@ -173,9 +176,11 @@ export class DrizzleMockTradingService implements MockTradingService {
       throw new HttpError(404, "USER_NOT_FOUND", "User was not found.");
     }
 
-    const provisioned = (await this.ensurePracticeAccount(userId)) as {
-      account: ReturnType<typeof publicAccount>;
-    };
+    // Accounts are opened by onboarding, never implicitly here.
+    const accounts = await this.database
+      .select()
+      .from(tradingAccounts)
+      .where(eq(tradingAccounts.userId, userId));
 
     return {
       user: {
@@ -190,19 +195,20 @@ export class DrizzleMockTradingService implements MockTradingService {
         canTrade: profile.trading_status === "active" && !profile.banned,
         canUseAdmin: profile.role === "admin",
       },
-      onboarding: {
-        complete: true,
-        emailVerified: profile.emailVerified,
-        practiceAccountProvisioned: true,
-      },
-      accounts: [provisioned.account],
+      accounts: accounts.map(publicAccount),
       currency: MVP_PRODUCT.currency,
       features: MVP_PRODUCT.features,
       executionPolicy: MVP_PRODUCT.execution,
     };
   }
 
-  async ensurePracticeAccount(userId: string) {
+  async ensurePracticeAccount(
+    userId: string,
+    options: { startingBalance?: number } = {},
+  ) {
+    const balance = (
+      options.startingBalance ?? MVP_PRODUCT.initialPracticeBalance
+    ).toFixed(8);
     const [profile] = await this.database
       .select({ id: user.id, emailVerified: user.emailVerified })
       .from(user)
@@ -244,11 +250,11 @@ export class DrizzleMockTradingService implements MockTradingService {
           type: "practice",
           status: "active",
           baseCurrency: MVP_PRODUCT.currency,
-          startingBalance: INITIAL_PRACTICE_BALANCE,
-          mockCashBalance: INITIAL_PRACTICE_BALANCE,
-          mockBuyingPower: INITIAL_PRACTICE_BALANCE,
+          startingBalance: balance,
+          mockCashBalance: balance,
+          mockBuyingPower: balance,
           openedAt: new Date(),
-          metadata: { product: "mvp", provisionedBy: "bootstrap" },
+          metadata: { product: "mvp", provisionedBy: "onboarding" },
         })
         .onConflictDoNothing()
         .returning();
@@ -282,13 +288,13 @@ export class DrizzleMockTradingService implements MockTradingService {
           userId,
           type: "initial_credit",
           status: "posted",
-          amount: INITIAL_PRACTICE_BALANCE,
+          amount: balance,
           currency: MVP_PRODUCT.currency,
-          balanceAfter: INITIAL_PRACTICE_BALANCE,
+          balanceAfter: balance,
           referenceType: "account",
           referenceId: account.id,
           idempotencyKey: `${account.id}:initial-credit`,
-          description: "Initial MVP practice balance.",
+          description: "Opening practice balance.",
           postedAt: new Date(),
         });
       }

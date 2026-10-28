@@ -1,4 +1,5 @@
 import { createClient, type RedisClientType } from "redis";
+import { log } from "../lib/log";
 
 export interface SubscriptionLeaseRepository {
   ping(): Promise<boolean>;
@@ -40,7 +41,7 @@ export class RedisSubscriptionLeaseRepository
       database: options.database,
     });
     this.client.on("error", (error) =>
-      console.error("Redis subscription repository error", error),
+      log.error("redis subscription repository error", { error }),
     );
   }
 

@@ -1,5 +1,8 @@
 import { writeFile } from "node:fs/promises";
 import { auth } from "../src/lib/auth";
+import { ONBOARDING_STEPS } from "../src/services/onboarding/onboardingOptions";
+
+const stepIds = ONBOARDING_STEPS.map((step) => step.id);
 
 type OpenApiDocument = {
   openapi?: string;
@@ -78,6 +81,55 @@ const document = {
           "200": jsonResponse("BootstrapResponse"),
           "401": errorResponses["401"],
           "403": { $ref: "#/components/responses/Forbidden" },
+        },
+      },
+    },
+    "/api/v1/onboarding": {
+      get: {
+        tags: ["Onboarding"],
+        operationId: "getOnboarding",
+        description:
+          "Onboarding progress, saved answers and the options for every step. Every account, order and market-data API returns 403 ONBOARDING_REQUIRED until onboarding is complete.",
+        security,
+        responses: {
+          "200": jsonResponse("OnboardingState"),
+          "401": errorResponses["401"],
+          "403": { $ref: "#/components/responses/Forbidden" },
+        },
+      },
+    },
+    "/api/v1/onboarding/profile": onboardingStep(
+      "saveOnboardingProfile",
+      "OnboardingProfileInput",
+    ),
+    "/api/v1/onboarding/experience": onboardingStep(
+      "saveOnboardingExperience",
+      "OnboardingExperienceInput",
+    ),
+    "/api/v1/onboarding/preferences": onboardingStep(
+      "saveOnboardingPreferences",
+      "OnboardingPreferencesInput",
+    ),
+    "/api/v1/onboarding/watchlist": onboardingStep(
+      "saveOnboardingWatchlist",
+      "OnboardingWatchlistInput",
+    ),
+    "/api/v1/onboarding/agreements": onboardingStep(
+      "acceptOnboardingAgreements",
+      "OnboardingAgreementsInput",
+    ),
+    "/api/v1/onboarding/complete": {
+      post: {
+        tags: ["Onboarding"],
+        operationId: "completeOnboarding",
+        description:
+          "Opens the practice account with the chosen starting capital once every step is done.",
+        security,
+        responses: {
+          "200": jsonResponse("OnboardingState"),
+          "401": errorResponses["401"],
+          "403": { $ref: "#/components/responses/Forbidden" },
+          "409": errorResponses["409"],
         },
       },
     },
@@ -187,6 +239,7 @@ const document = {
       get: {
         tags: ["Market Data"],
         operationId: "getInstrumentHistory",
+        security,
         parameters: [
           { $ref: "#/components/parameters/InstrumentId" },
           query("range", { enum: ["5d", "1mo", "6mo", "1y"] }),
@@ -314,7 +367,7 @@ const document = {
           user: { type: "object", additionalProperties: true },
           roles: { type: "array", items: { type: "string" } },
           capabilities: { type: "object", additionalProperties: true },
-          onboarding: { type: "object", additionalProperties: true },
+          onboarding: ref("OnboardingSummary"),
           accounts: { type: "array", items: ref("PublicAccount") },
           currency: { const: "INR" },
           features: {
@@ -322,6 +375,228 @@ const document = {
             additionalProperties: { type: "boolean" },
           },
           executionPolicy: { type: "object", additionalProperties: true },
+        },
+      },
+      OnboardingSummary: {
+        type: "object",
+        required: ["complete", "currentStep", "watchlist"],
+        properties: {
+          complete: { type: "boolean" },
+          currentStep: { type: ["string", "null"], enum: [...stepIds, null] },
+          watchlist: { type: "array", items: ref("OnboardingInstrument") },
+        },
+      },
+      OnboardingInstrument: {
+        type: "object",
+        required: ["instrumentKey", "symbol", "name", "exchange", "scripType"],
+        properties: {
+          instrumentKey: { type: "string" },
+          symbol: { type: "string" },
+          name: { type: "string" },
+          exchange: { type: "string" },
+          scripType: { type: "string" },
+          lotSize: { type: ["number", "null"] },
+          tickSize: { type: ["number", "null"] },
+        },
+      },
+      OnboardingOption: {
+        type: "object",
+        required: ["value", "label"],
+        properties: {
+          value: { type: "string" },
+          label: { type: "string" },
+          description: { type: "string" },
+        },
+      },
+      OnboardingState: {
+        type: "object",
+        required: [
+          "status",
+          "complete",
+          "emailVerified",
+          "currentStep",
+          "steps",
+          "completedAt",
+          "existingAccount",
+          "data",
+          "options",
+        ],
+        properties: {
+          status: { enum: ["in_progress", "completed"] },
+          complete: { type: "boolean" },
+          emailVerified: { type: "boolean" },
+          currentStep: { type: ["string", "null"], enum: [...stepIds, null] },
+          completedAt: dateTime(true),
+          existingAccount: {
+            type: ["object", "null"],
+            required: ["accountNumber", "startingBalance"],
+            properties: {
+              accountNumber: { type: "string" },
+              startingBalance: { type: "number" },
+            },
+          },
+          steps: {
+            type: "array",
+            items: {
+              type: "object",
+              required: ["id", "title", "description", "complete"],
+              properties: {
+                id: { enum: stepIds },
+                title: { type: "string" },
+                description: { type: "string" },
+                complete: { type: "boolean" },
+              },
+            },
+          },
+          data: {
+            type: "object",
+            required: [
+              "fullName",
+              "email",
+              "dateOfBirth",
+              "phone",
+              "city",
+              "state",
+              "occupation",
+              "experienceLevel",
+              "instrumentsTraded",
+              "tradingStyle",
+              "tradingGoals",
+              "riskAppetite",
+              "startingCapital",
+              "watchlist",
+              "termsVersion",
+              "termsAcceptedAt",
+              "riskDisclosureAcceptedAt",
+            ],
+            properties: {
+              fullName: { type: "string" },
+              email: { type: "string" },
+              dateOfBirth: { type: ["string", "null"], format: "date" },
+              phone: { type: ["string", "null"] },
+              city: { type: ["string", "null"] },
+              state: { type: ["string", "null"] },
+              occupation: { type: ["string", "null"] },
+              experienceLevel: { type: ["string", "null"] },
+              instrumentsTraded: { type: "array", items: { type: "string" } },
+              tradingStyle: { type: ["string", "null"] },
+              tradingGoals: { type: "array", items: { type: "string" } },
+              riskAppetite: { type: ["string", "null"] },
+              startingCapital: { type: ["number", "null"] },
+              watchlist: { type: "array", items: ref("OnboardingInstrument") },
+              termsVersion: { type: ["string", "null"] },
+              termsAcceptedAt: dateTime(true),
+              riskDisclosureAcceptedAt: dateTime(true),
+            },
+          },
+          options: {
+            type: "object",
+            required: [
+              "occupations",
+              "experienceLevels",
+              "instruments",
+              "tradingStyles",
+              "goals",
+              "riskAppetites",
+              "startingCapitals",
+              "states",
+              "minimumAge",
+              "maxWatchlist",
+              "suggestedInstruments",
+              "terms",
+            ],
+            properties: {
+              occupations: optionList(),
+              experienceLevels: optionList(),
+              instruments: optionList(),
+              tradingStyles: optionList(),
+              goals: optionList(),
+              riskAppetites: optionList(),
+              startingCapitals: {
+                type: "array",
+                items: {
+                  type: "object",
+                  required: ["value", "label"],
+                  properties: {
+                    value: { type: "number" },
+                    label: { type: "string" },
+                  },
+                },
+              },
+              states: { type: "array", items: { type: "string" } },
+              minimumAge: { type: "integer" },
+              maxWatchlist: { type: "integer" },
+              suggestedInstruments: {
+                type: "array",
+                items: ref("OnboardingInstrument"),
+              },
+              terms: {
+                type: "object",
+                required: ["version", "sections"],
+                properties: {
+                  version: { type: "string" },
+                  sections: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      required: ["id", "title", "points"],
+                      properties: {
+                        id: { type: "string" },
+                        title: { type: "string" },
+                        points: { type: "array", items: { type: "string" } },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      OnboardingProfileInput: {
+        type: "object",
+        required: ["fullName", "dateOfBirth", "city", "state", "occupation"],
+        properties: {
+          fullName: { type: "string" },
+          dateOfBirth: { type: "string", format: "date" },
+          phone: { type: ["string", "null"] },
+          city: { type: "string" },
+          state: { type: "string" },
+          occupation: { type: "string" },
+        },
+      },
+      OnboardingExperienceInput: {
+        type: "object",
+        required: ["experienceLevel", "instrumentsTraded", "tradingStyle"],
+        properties: {
+          experienceLevel: { type: "string" },
+          instrumentsTraded: { type: "array", items: { type: "string" } },
+          tradingStyle: { type: "string" },
+        },
+      },
+      OnboardingPreferencesInput: {
+        type: "object",
+        required: ["tradingGoals", "riskAppetite", "startingCapital"],
+        properties: {
+          tradingGoals: { type: "array", items: { type: "string" } },
+          riskAppetite: { type: "string" },
+          startingCapital: { type: "number" },
+        },
+      },
+      OnboardingWatchlistInput: {
+        type: "object",
+        required: ["instrumentIds"],
+        properties: {
+          instrumentIds: { type: "array", items: { type: "string" } },
+        },
+      },
+      OnboardingAgreementsInput: {
+        type: "object",
+        required: ["termsVersion", "acceptTerms", "acceptRiskDisclosure"],
+        properties: {
+          termsVersion: { type: "string" },
+          acceptTerms: { const: true },
+          acceptRiskDisclosure: { const: true },
         },
       },
       ProvisionAccountResponse: {
@@ -557,6 +832,31 @@ function listPath(operationId: string, schema: string, paginated = true) {
   return { get: listOperation(operationId, schema, paginated) };
 }
 
+function onboardingStep(operationId: string, input: string) {
+  return {
+    post: {
+      tags: ["Onboarding"],
+      operationId,
+      security,
+      requestBody: {
+        required: true,
+        content: { "application/json": { schema: ref(input) } },
+      },
+      responses: {
+        "200": jsonResponse("OnboardingState"),
+        "401": errorResponses["401"],
+        "403": { $ref: "#/components/responses/Forbidden" },
+        "409": errorResponses["409"],
+        "422": errorResponses["422"],
+      },
+    },
+  };
+}
+
+function optionList() {
+  return { type: "array", items: ref("OnboardingOption") };
+}
+
 function publicGet(
   operationId: string,
   schema: string,
@@ -566,10 +866,14 @@ function publicGet(
     get: {
       tags: ["Market Data"],
       operationId,
+      description: "Requires a signed-in user who has completed onboarding.",
+      security,
       parameters,
       responses: {
         "200": jsonResponse(schema),
         "400": errorResponses["400"],
+        "401": errorResponses["401"],
+        "403": { $ref: "#/components/responses/Forbidden" },
         "404": errorResponses["404"],
       },
     },

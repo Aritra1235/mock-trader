@@ -36,6 +36,7 @@ export type AuthState =
   | "ready"
   | "unauthorized"
   | "verify"
+  | "onboarding"
   | "offline";
 export type Side = "buy" | "sell";
 export type Summary = {
@@ -138,9 +139,15 @@ export async function resolveSymbol(symbol: string) {
   );
 }
 
-function readSavedWatchlist(): Instrument[] | string[] | null {
+function readSavedWatchlist(userId: string): Instrument[] | string[] | null {
   try {
-    const saved = JSON.parse(localStorage.getItem(WATCHLIST_KEY) ?? "null");
+    // Watchlists are per user; the unscoped key is from before that and is
+    // adopted by whoever signs in first.
+    const saved = JSON.parse(
+      localStorage.getItem(`${WATCHLIST_KEY}:${userId}`) ??
+        localStorage.getItem(WATCHLIST_KEY) ??
+        "null",
+    );
     if (Array.isArray(saved)) {
       return saved
         .map(instrumentFrom)
@@ -157,6 +164,10 @@ function readSavedWatchlist(): Instrument[] | string[] | null {
 
 export function TraderProvider({ children }: { children: React.ReactNode }) {
   const [auth, setAuth] = useState<AuthState>("loading");
+  const [userId, setUserId] = useState("");
+  const [onboardingWatchlist, setOnboardingWatchlist] = useState<Instrument[]>(
+    [],
+  );
   const [userName, setUserName] = useState("");
   const [userEmail, setUserEmail] = useState("");
   const [account, setAccount] = useState<Account | null>(null);
@@ -227,8 +238,16 @@ export function TraderProvider({ children }: { children: React.ReactNode }) {
         me.data.accounts[0] ??
         null;
       setAccount(practice);
+      setUserId(str(me.data.user.id));
       setUserName(str(me.data.user.name));
       setUserEmail(str(me.data.user.email));
+      // Everything past this point is locked by the API until onboarding is done.
+      if (!me.data.onboarding.complete) return setAuth("onboarding");
+      setOnboardingWatchlist(
+        me.data.onboarding.watchlist
+          .map(instrumentFrom)
+          .filter((x): x is Instrument => x !== null),
+      );
       setAuth("ready");
       if (!practice) return;
       const path = { accountId: practice.id };
@@ -291,18 +310,28 @@ export function TraderProvider({ children }: { children: React.ReactNode }) {
       setTrades([]);
       setLedger([]);
       setSummary(emptySummary);
+      setWatchlist([]);
+      setWatchlistLoaded(false);
+      setUserId("");
       setAuth("unauthorized");
     } catch {
       notify({ tone: "error", title: "Sign out failed", body: "Try again." });
     }
   }, [notify]);
 
-  // Watchlist: restore from storage, migrating the old symbol-only pins.
+  // Watchlist: restore this user's saved list, else the one picked during
+  // onboarding, else a few large caps. Old symbol-only pins are migrated.
   useEffect(() => {
+    if (auth !== "ready" || !userId || watchlistLoaded) return;
     let active = true;
-    const saved = readSavedWatchlist();
+    const saved = readSavedWatchlist(userId);
     if (saved && saved.length > 0 && typeof saved[0] !== "string") {
       setWatchlist(saved as Instrument[]);
+      setWatchlistLoaded(true);
+      return;
+    }
+    if (!saved && onboardingWatchlist.length > 0) {
+      setWatchlist(onboardingWatchlist);
       setWatchlistLoaded(true);
       return;
     }
@@ -319,12 +348,15 @@ export function TraderProvider({ children }: { children: React.ReactNode }) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [auth, userId, watchlistLoaded, onboardingWatchlist]);
   useEffect(() => {
-    if (!watchlistLoaded) return;
-    localStorage.setItem(WATCHLIST_KEY, JSON.stringify(watchlist));
+    if (!watchlistLoaded || !userId) return;
+    localStorage.setItem(
+      `${WATCHLIST_KEY}:${userId}`,
+      JSON.stringify(watchlist),
+    );
     remember(watchlist);
-  }, [watchlist, watchlistLoaded, remember]);
+  }, [watchlist, watchlistLoaded, userId, remember]);
 
   const watchedKeys = useMemo(
     () => new Set(watchlist.map((x) => x.instrumentKey)),
@@ -402,7 +434,7 @@ export function TraderProvider({ children }: { children: React.ReactNode }) {
   }, [watchlist, positions, tracked]);
 
   useEffect(() => {
-    if (!quoteKey) return;
+    if (auth !== "ready" || !quoteKey) return;
     let active = true;
     const load = async () => {
       try {
@@ -438,7 +470,7 @@ export function TraderProvider({ children }: { children: React.ReactNode }) {
       active = false;
       clearInterval(poll);
     };
-  }, [quoteKey]);
+  }, [auth, quoteKey]);
 
   // Without a live quote, fall back to the last daily close so prices are never blank.
   useEffect(() => {

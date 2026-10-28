@@ -7,6 +7,7 @@ import { type Context, Elysia } from "elysia";
 import { apiVersion } from "../config/const";
 import type { AppEnv } from "../config/env";
 import { auth } from "../lib/auth";
+import { log } from "../lib/log";
 import { requestIdFor } from "../lib/requestId";
 import type { MarketDataStore } from "../repositories/marketDataStore";
 import type { SubscriptionLeaseRepository } from "../repositories/subscriptionLeaseRepository";
@@ -23,6 +24,10 @@ import {
   type HistoryRange,
 } from "../services/historicalMarketData";
 import type { MarketDataService } from "../services/marketDataService";
+import {
+  DrizzleOnboardingService,
+  type OnboardingService,
+} from "../services/onboarding/onboardingService";
 import type { PaytmSessionService } from "../services/paytmSessionService";
 import {
   DrizzleMockTradingService,
@@ -41,6 +46,7 @@ export interface AppDependencies {
   databasePing?: () => Promise<boolean>;
   authSession?: AuthSessionService;
   trading?: MockTradingService;
+  onboarding?: OnboardingService;
   history?: (
     instrument: NonNullable<ReturnType<CatalogService["resolve"]>>,
     range: HistoryRange,
@@ -62,7 +68,87 @@ export function buildApp(deps: AppDependencies) {
   const trading =
     deps.trading ??
     new DrizzleMockTradingService(deps.catalog, deps.marketData);
+  const onboarding =
+    deps.onboarding ?? new DrizzleOnboardingService(deps.catalog, trading);
+  const marketPrefix = `/api/${apiVersion}/market/`;
+
+  /** Market data is for onboarded users only; returns an error body otherwise. */
+  /**
+   * Who is calling and whether they're onboarded. A failed lookup (database
+   * down, schema missing) is "unavailable", not "signed out": answering 401
+   * there would wrongly tell a signed-in user to log in again.
+   */
+  const accessFor = async (request: Request) => {
+    try {
+      const session = await authSession.getSession(request);
+      if (!session?.user || session.user.banned) return "signed-out" as const;
+      return (await onboarding.isComplete(session.user.id))
+        ? ("ok" as const)
+        : ("not-onboarded" as const);
+    } catch (error) {
+      log.error("session lookup failed", {
+        path: new URL(request.url).pathname,
+        requestId: requestIdFor(request),
+        error,
+      });
+      return "unavailable" as const;
+    }
+  };
+
+  /** Market data is for onboarded users only; returns an error body otherwise. */
+  const requireOnboarded = async (
+    request: Request,
+    set: { status?: number | string },
+  ) => {
+    const access = await accessFor(request);
+    if (access === "unavailable") {
+      set.status = 503;
+      return apiError(
+        request,
+        "SERVICE_UNAVAILABLE",
+        "The service is temporarily unavailable. Try again shortly.",
+      );
+    }
+    if (access === "signed-out") {
+      set.status = 401;
+      return apiError(request, "UNAUTHORIZED", "Authentication is required.");
+    }
+    if (access === "not-onboarded") {
+      set.status = 403;
+      return apiError(
+        request,
+        "ONBOARDING_REQUIRED",
+        "Finish onboarding to open your practice account first.",
+      );
+    }
+  };
+
   const app = new Elysia()
+    // One log line per request, written once the response has been sent.
+    .onRequest(({ request }) => {
+      requestStarts.set(request, performance.now());
+    })
+    .onAfterResponse({ as: "global" }, ({ request, set, responseValue }) =>
+      logRequest(request, statusOf(responseValue, set.status)),
+    )
+    .onError({ as: "global" }, ({ request, error, code, set }) => {
+      // Validation and not-found errors are logged by the request line alone.
+      if (code === "NOT_FOUND" || code === "VALIDATION" || code === "PARSE")
+        return;
+      log.error("http unhandled error", {
+        method: request.method,
+        path: new URL(request.url).pathname,
+        requestId: requestIdFor(request),
+        code,
+        error,
+      });
+      set.status = 500;
+      return apiError(
+        request,
+        "INTERNAL_ERROR",
+        "An unexpected error occurred.",
+      );
+    })
     .use(
       cors({
         origin: deps.env.service.allowedOrigins ?? ["http://localhost:3001"],
@@ -137,6 +223,11 @@ export function buildApp(deps: AppDependencies) {
         catalogSyncedAt: deps.catalog.getLastSyncedAt(),
         websocketPath: deps.env.websocket.path,
       };
+    })
+    .onBeforeHandle(({ request, set }) => {
+      if (new URL(request.url).pathname.startsWith(marketPrefix)) {
+        return requireOnboarded(request, set);
+      }
     })
     .get(`/api/${apiVersion}/market/stats`, async () => ({
       catalogCount: deps.catalog.count(),
@@ -288,6 +379,7 @@ export function buildApp(deps: AppDependencies) {
   return registerTradingRoutes(app, {
     authSession,
     trading,
+    onboarding,
   })
     .get("/docs", ({ redirect }) => redirect("/docs/index.html"))
     .get("/docs/", ({ redirect }) => redirect("/docs/index.html"))
@@ -342,23 +434,68 @@ export function buildApp(deps: AppDependencies) {
           set.status = 403;
           return { error: "WEBSOCKET_ORIGIN_FORBIDDEN" };
         }
-        const session = await authSession.getSession(request);
-        if (!session?.user || session.user.banned) {
+        const access = await accessFor(request);
+        if (access === "unavailable") {
+          set.status = 503;
+          return { error: "SERVICE_UNAVAILABLE" };
+        }
+        if (access === "signed-out") {
           set.status = 401;
           return { error: "WEBSOCKET_UNAUTHORIZED" };
+        }
+        if (access === "not-onboarded") {
+          set.status = 403;
+          return { error: "ONBOARDING_REQUIRED" };
         }
       },
       maxPayloadLength: 16 * 1024,
       open: (ws) => {
+        log.info("ws open", { path: deps.env.websocket.path, id: ws.id });
         deps.gateway.open(ws);
       },
       message: async (ws, message) => {
         await deps.gateway.message(ws, message);
       },
-      close: (ws) => {
+      close: (ws, code) => {
+        log.info("ws close", { id: ws.id, code });
         void deps.gateway.close(ws);
       },
     });
+}
+
+const requestStarts = new WeakMap<Request, number>();
+// Probes and docs would drown out real traffic at info level.
+const quietPaths = /^\/(health|ready|docs|openapi\.json|favicon\.ico)\b/;
+
+function statusOf(response: unknown, status: number | string | undefined) {
+  if (response instanceof Response) return response.status;
+  return typeof status === "number" ? status : Number(status) || 200;
+}
+
+function logRequest(request: Request, status: number) {
+  const url = new URL(request.url);
+  const started = requestStarts.get(request);
+  const fields = {
+    method: request.method,
+    // Path only: query strings can carry OAuth codes and other secrets.
+    path: url.pathname,
+    status,
+    ms:
+      started === undefined
+        ? undefined
+        : Math.round(performance.now() - started),
+    requestId: requestIdFor(request),
+    ip:
+      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+      request.headers.get("x-real-ip") ??
+      undefined,
+    origin: request.headers.get("origin") ?? undefined,
+  };
+  if (status >= 500) log.error("http request", fields);
+  else if (request.method === "OPTIONS" || quietPaths.test(url.pathname))
+    log.debug("http request", fields);
+  else if (status >= 400) log.warn("http request", fields);
+  else log.info("http request", fields);
 }
 
 function boundedInteger(

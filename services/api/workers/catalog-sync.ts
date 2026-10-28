@@ -1,4 +1,5 @@
 import { loadCatalogWorkerEnv } from "../src/config/env";
+import { log } from "../src/lib/log";
 import { PaytmHttpClient } from "../src/providers/paytmHttpClient";
 import { CatalogService } from "../src/services/catalogService";
 
@@ -11,6 +12,7 @@ const catalog = new CatalogService(
 );
 
 const count = await catalog.syncFromProvider();
-console.log(
-  `Catalog sync complete: ${count} instruments written to ${env.paths.catalogSnapshot}`,
-);
+log.info("catalog sync complete", {
+  instruments: count,
+  snapshot: env.paths.catalogSnapshot,
+});

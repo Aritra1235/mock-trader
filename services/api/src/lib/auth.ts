@@ -10,6 +10,7 @@ import {
   authUserAdditionalFields,
 } from "../db/schemas/auth/auth-fields";
 import { sendEmail } from "./email";
+import { type Level, log } from "./log";
 
 const env = loadAuthEnv();
 
@@ -18,6 +19,21 @@ export const auth = betterAuth({
   baseURL: env.baseUrl,
   secret: env.secret,
   trustedOrigins: env.trustedOrigins,
+  // Route Better Auth's own messages through the one-line logger (LOG_LEVEL
+  // filters them), and hand unexpected errors to Elysia's error hook instead
+  // of letting the router print multi-line dumps.
+  logger: {
+    level: "debug",
+    log: (level, message, ...args) => {
+      const error = args.find((arg) => arg instanceof Error);
+      const extra = args.filter((arg) => arg !== error);
+      log[level as Level](`auth ${message.trim()}`, {
+        error,
+        detail: extra.length ? extra.map(String).join(" ") : undefined,
+      });
+    },
+  },
+  onAPIError: { throw: true },
   advanced: {
     useSecureCookies: env.secureCookies,
     defaultCookieAttributes: {
@@ -53,42 +69,42 @@ export const auth = betterAuth({
     },
   },
   emailVerification: {
-    sendVerificationEmail: async ({ user, url }) => {
-      await sendEmail({
-        to: user.email,
-        subject: "Verify your email address",
-        text: `Click the link to verify your email: ${url}`,
-      });
-    },
+    // Verification uses the 6-digit email code below; verifying it signs the
+    // user in so they land straight in onboarding.
+    autoSignInAfterVerification: true,
   },
   plugins: [
     admin(),
     auditLog(),
     openAPI(),
     emailOTP({
+      overrideDefaultEmailVerification: true,
+      sendVerificationOnSignUp: true,
+      otpLength: 6,
+      expiresIn: 10 * 60,
+      allowedAttempts: 5,
+      storeOTP: "hashed",
       async sendVerificationOTP({ email, otp, type }) {
-        if (type === "sign-in") {
-          // Send the OTP for sign in
-          await sendEmail({
-            to: email,
-            subject: "Sign in OTP",
-            text: `Your OTP is: ${otp}`,
-          });
-        } else if (type === "email-verification") {
-          // Send the OTP for email verification
-          await sendEmail({
-            to: email,
-            subject: "Email verification OTP",
-            text: `Your OTP is: ${otp}`,
-          });
-        } else {
-          // Send the OTP for password reset
-          await sendEmail({
-            to: email,
-            subject: "Password reset OTP",
-            text: `Your OTP is: ${otp}`,
-          });
-        }
+        const purpose = {
+          "sign-in": ["Your Mock Trader sign-in code", "sign in"],
+          "email-verification": [
+            "Verify your email for Mock Trader",
+            "verify your email",
+          ],
+          "forget-password": [
+            "Reset your Mock Trader password",
+            "reset your password",
+          ],
+          "change-email": [
+            "Confirm your new Mock Trader email",
+            "confirm your new email",
+          ],
+        }[type];
+        await sendEmail({
+          to: email,
+          subject: `${otp} is your code · ${purpose[0]}`,
+          text: `Use ${otp} to ${purpose[1]}. The code expires in 10 minutes.\n\nIf you didn't request it, you can ignore this email.`,
+        });
       },
     }),
   ],

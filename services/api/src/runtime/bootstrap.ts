@@ -3,6 +3,7 @@ import { dirname } from "node:path";
 import { buildApp } from "../app/buildApp";
 import { loadRuntimeEnv } from "../config/env";
 import { pool } from "../db";
+import { log } from "../lib/log";
 import { PaytmHttpClient } from "../providers/paytmHttpClient";
 import { RedisMarketDataStore } from "../repositories/marketDataStore";
 import { RedisSubscriptionLeaseRepository } from "../repositories/subscriptionLeaseRepository";
@@ -35,7 +36,7 @@ export async function bootstrapRuntime() {
     try {
       await catalog.syncFromProvider();
     } catch (error) {
-      console.warn("Catalog bootstrap sync failed", error);
+      log.warn("catalog bootstrap sync failed", { error });
     }
   }
 
@@ -80,7 +81,7 @@ export async function bootstrapRuntime() {
 
   setInterval(() => {
     void catalog.syncFromProvider().catch((error) => {
-      console.warn("Scheduled catalog sync failed", error);
+      log.warn("scheduled catalog sync failed", { error });
     });
   }, env.catalog.refreshMs);
 

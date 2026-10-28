@@ -1,6 +1,7 @@
 import { createClient } from "redis";
 import { LivePriceWebSocket } from "../../../libraries/tsPMClient/src/livePriceWebSocket";
 import { loadIngestWorkerEnv } from "../src/config/env";
+import { log } from "../src/lib/log";
 import {
   buildSubscriptionKey,
   createOrMergeCandle,
@@ -26,9 +27,9 @@ const redis = createClient({
 });
 const subscriber = redis.duplicate();
 
-redis.on("error", (error) => console.error("Price worker redis error", error));
+redis.on("error", (error) => log.error("price worker redis error", { error }));
 subscriber.on("error", (error) =>
-  console.error("Price worker redis subscriber error", error),
+  log.error("price worker redis subscriber error", { error }),
 );
 
 await redis.connect();
@@ -63,11 +64,11 @@ live.setOnOpenListener(() => {
 });
 
 live.setOnErrorListener((error) => {
-  console.error("Live price websocket error", error);
+  log.error("live price websocket error", { error });
 });
 
 live.setOnCloseListener((code, reason) => {
-  console.warn("Live price websocket closed", {
+  log.warn("live price websocket closed", {
     code,
     reason: reason.toString(),
   });

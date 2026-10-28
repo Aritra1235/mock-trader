@@ -20,7 +20,12 @@ import type {
   ResolveInput,
 } from "../../src/services/trading/mockTradingService";
 import { MarketGateway } from "../../src/ws/marketGateway";
-import { InMemoryLeases, InMemoryStore, makeCatalog } from "../testSupport";
+import {
+  FakeOnboardingService,
+  InMemoryLeases,
+  InMemoryStore,
+  makeCatalog,
+} from "../testSupport";
 
 test("authenticated portfolio read uses the Better Auth session identity", async () => {
   const { app, trading } = await buildTradingTestApp({
@@ -35,6 +40,126 @@ test("authenticated portfolio read uses the Better Auth session identity", async
   expect(response.status).toBe(200);
   expect(body.accounts[0].account.id).toBe("account-1");
   expect(trading.calls[0]).toEqual(["getPortfolio", "user-1"]);
+});
+
+test("users who haven't finished onboarding are locked out of every account and market API", async () => {
+  const { app, trading } = await buildTradingTestApp({
+    user: { id: "user-1", role: "user" },
+    onboarded: false,
+  });
+
+  const blocked = [
+    ["GET", "/api/v1/me/portfolio"],
+    ["POST", "/api/v1/me/accounts"],
+    ["GET", "/api/v1/accounts/account-1"],
+    ["GET", "/api/v1/accounts/account-1/orders"],
+    ["POST", "/api/v1/accounts/account-1/orders"],
+    ["POST", "/api/v1/orders/order-1/cancel"],
+    ["GET", "/api/v1/market/instruments/search?q=REL"],
+    ["GET", "/api/v1/market/instruments/RELIANCE"],
+    ["GET", "/api/v1/market/quotes?ids=RELIANCE"],
+    ["GET", "/api/v1/market/stats"],
+  ] as const;
+  for (const [method, path] of blocked) {
+    const response = await app.handle(
+      new Request(`http://localhost${path}`, {
+        method,
+        headers: { "content-type": "application/json" },
+        body: method === "POST" ? "{}" : undefined,
+      }),
+    );
+    expect([path, response.status]).toEqual([path, 403]);
+    const body = await response.json();
+    expect(body.error.code).toBe("ONBOARDING_REQUIRED");
+  }
+  expect(trading.calls.filter(([name]) => name !== "getMe")).toEqual([]);
+
+  // /me still answers so the client knows to start onboarding.
+  const me = await app.handle(new Request("http://localhost/api/v1/me"));
+  const body = await me.json();
+  expect(me.status).toBe(200);
+  expect(body.onboarding).toEqual({
+    complete: false,
+    currentStep: "profile",
+    watchlist: [],
+  });
+  expect(body.capabilities.canTrade).toBeFalse();
+});
+
+test("onboarding routes are open to signed-in users and forward the identity", async () => {
+  const { app, onboarding } = await buildTradingTestApp({
+    user: { id: "user-1", role: "user" },
+    onboarded: false,
+  });
+
+  const state = await app.handle(
+    new Request("http://localhost/api/v1/onboarding"),
+  );
+  expect(state.status).toBe(200);
+  for (const step of [
+    "profile",
+    "experience",
+    "preferences",
+    "watchlist",
+    "agreements",
+  ]) {
+    const response = await app.handle(
+      new Request(`http://localhost/api/v1/onboarding/${step}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ step }),
+      }),
+    );
+    expect(response.status).toBe(200);
+  }
+  const done = await app.handle(
+    new Request("http://localhost/api/v1/onboarding/complete", {
+      method: "POST",
+    }),
+  );
+  expect(done.status).toBe(200);
+  expect(onboarding.calls.map(([name]) => name)).toEqual([
+    "getState",
+    "saveProfile",
+    "saveExperience",
+    "savePreferences",
+    "saveWatchlist",
+    "acceptAgreements",
+    "complete",
+  ]);
+
+  // Once complete, the account APIs open up.
+  const portfolio = await app.handle(
+    new Request("http://localhost/api/v1/me/portfolio"),
+  );
+  expect(portfolio.status).toBe(200);
+});
+
+test("a failed session lookup answers 503, not a misleading 401", async () => {
+  const { app } = await buildTradingTestApp({
+    user: { id: "user-1", role: "user" },
+    sessionFails: true,
+  });
+  for (const path of [
+    "/api/v1/me",
+    "/api/v1/me/portfolio",
+    "/api/v1/market/instruments/search?q=REL",
+  ]) {
+    const response = await app.handle(new Request(`http://localhost${path}`));
+    expect([path, response.status]).toEqual([path, 503]);
+    expect((await response.json()).error.code).toBe("SERVICE_UNAVAILABLE");
+  }
+});
+
+test("signed-out requests to onboarding and market APIs get 401", async () => {
+  const { app } = await buildTradingTestApp({ user: null });
+  for (const path of [
+    "/api/v1/onboarding",
+    "/api/v1/market/instruments/search?q=REL",
+  ]) {
+    const response = await app.handle(new Request(`http://localhost${path}`));
+    expect(response.status).toBe(401);
+  }
 });
 
 test("bootstrap and account onboarding routes use the authenticated identity", async () => {
@@ -256,6 +381,8 @@ test("admin moderation routes require an admin Better Auth role", async () => {
 
 async function buildTradingTestApp(options: {
   user: { id: string; role: string; tradingStatus?: string } | null;
+  onboarded?: boolean;
+  sessionFails?: boolean;
 }) {
   const env = testEnv();
   const catalog = await makeCatalog(
@@ -287,6 +414,16 @@ async function buildTradingTestApp(options: {
   );
   const trading = new FakeTradingService();
   const authSession = new FakeAuthSessionService(options.user);
+  if (options.sessionFails) {
+    authSession.getSession = async () => {
+      throw new Error('relation "session" does not exist');
+    };
+  }
+  const onboarding = new FakeOnboardingService(
+    new Set(
+      options.user && options.onboarded !== false ? [options.user.id] : [],
+    ),
+  );
 
   const app = buildApp({
     env,
@@ -298,9 +435,10 @@ async function buildTradingTestApp(options: {
     leases,
     authSession,
     trading,
+    onboarding,
   });
 
-  return { app, trading };
+  return { app, trading, onboarding };
 }
 
 class FakeAuthSessionService implements AuthSessionService {
@@ -337,8 +475,8 @@ class FakeTradingService implements MockTradingService {
     this.calls.push(["getMe", userId]);
     return {
       user: { id: userId, emailVerified: true },
+      capabilities: { canTrade: true, canUseAdmin: false },
       accounts: [{ id: "account-1", currency: "INR" }],
-      onboarding: { complete: true },
     };
   }
 
