@@ -2899,6 +2899,22 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/market/instruments/{id}/history": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["getInstrumentHistory"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/market/quotes": {
     parameters: {
       query?: never;
@@ -3206,6 +3222,26 @@ export interface components {
       [key: string]: unknown;
     };
     InstrumentSearchResponse: components["schemas"]["Instrument"][];
+    HistoricalBar: {
+      /** @description Unix milliseconds */
+      timestamp: number;
+      open: number;
+      high: number;
+      low: number;
+      close: number;
+      volume: number;
+    };
+    InstrumentHistoryResponse: {
+      instrumentKey: string;
+      symbol: string;
+      /** @constant */
+      source: "Yahoo Finance";
+      /** @enum {unknown} */
+      interval: "15m" | "1d";
+      /** @enum {unknown} */
+      range: "5d" | "1mo" | "6mo" | "1y";
+      bars: components["schemas"]["HistoricalBar"][];
+    };
     QuotesResponse: {
       [key: string]: unknown;
     };
@@ -7747,6 +7783,40 @@ export interface operations {
       };
       400: components["responses"]["InvalidRequest"];
       404: components["responses"]["NotFound"];
+    };
+  };
+  getInstrumentHistory: {
+    parameters: {
+      query?: {
+        range?: "5d" | "1mo" | "6mo" | "1y";
+      };
+      header?: never;
+      path: {
+        id: components["parameters"]["InstrumentId"];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["InstrumentHistoryResponse"];
+        };
+      };
+      400: components["responses"]["InvalidRequest"];
+      404: components["responses"]["NotFound"];
+      422: components["responses"]["Unprocessable"];
+      /** @description Historical price source unavailable */
+      502: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
     };
   };
   getQuotes: {

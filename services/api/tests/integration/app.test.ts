@@ -123,6 +123,23 @@ test("app exposes health, instrument search, and quotes", async () => {
     gateway,
     store,
     leases,
+    history: async (instrument, range) => ({
+      instrumentKey: instrument.instrumentKey,
+      symbol: instrument.symbol,
+      source: "Yahoo Finance",
+      interval: range === "5d" ? "15m" : "1d",
+      range,
+      bars: [
+        {
+          timestamp: 1_790_000_000_000,
+          open: 100,
+          high: 102,
+          low: 99,
+          close: 101,
+          volume: 1000,
+        },
+      ],
+    }),
   });
 
   const healthResponse = await app.handle(
@@ -202,6 +219,23 @@ test("app exposes health, instrument search, and quotes", async () => {
       new Request(`http://localhost${prefix}/market/candles/RELIANCE`),
     );
     expect(candlesResponse.status).toBe(404);
+
+    const historyResponse = await app.handle(
+      new Request(
+        `http://localhost${prefix}/market/instruments/RELIANCE/history?range=5d`,
+      ),
+    );
+    expect(historyResponse.status).toBe(200);
+    const history = await historyResponse.json();
+    expect(history.bars).toHaveLength(1);
+    expect(history.interval).toBe("15m");
+
+    const badRange = await app.handle(
+      new Request(
+        `http://localhost${prefix}/market/instruments/RELIANCE/history?range=invalid`,
+      ),
+    );
+    expect(badRange.status).toBe(400);
   }
 
   const quoteResponse = await app.handle(

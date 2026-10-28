@@ -17,6 +17,11 @@ import {
   betterAuthSessionService,
 } from "../services/authSessionService";
 import type { CatalogService } from "../services/catalogService";
+import {
+  fetchHistoricalCandles,
+  type HistoricalCandles,
+  type HistoryRange,
+} from "../services/historicalMarketData";
 import type { MarketDataService } from "../services/marketDataService";
 import type { PaytmSessionService } from "../services/paytmSessionService";
 import {
@@ -36,6 +41,10 @@ export interface AppDependencies {
   databasePing?: () => Promise<boolean>;
   authSession?: AuthSessionService;
   trading?: MockTradingService;
+  history?: (
+    instrument: NonNullable<ReturnType<CatalogService["resolve"]>>,
+    range: HistoryRange,
+  ) => Promise<HistoricalCandles>;
 }
 
 const betterAuthView = (context: Context) => {
@@ -166,6 +175,55 @@ export function buildApp(deps: AppDependencies) {
           );
         }
         return instrument;
+      },
+    )
+    .get(
+      `/api/${apiVersion}/market/instruments/:id/history`,
+      async ({ params, query, request, set }) => {
+        const instrument = deps.catalog.resolve(params.id);
+        if (!instrument) {
+          set.status = 404;
+          return apiError(
+            request,
+            "INSTRUMENT_NOT_FOUND",
+            "Instrument was not found.",
+          );
+        }
+        if (
+          instrument.scripType !== "EQUITY" ||
+          !["NSE", "BSE"].includes(instrument.exchange)
+        ) {
+          set.status = 422;
+          return apiError(
+            request,
+            "HISTORY_UNSUPPORTED",
+            "History is available for NSE and BSE equities only.",
+          );
+        }
+        const range = typeof query.range === "string" ? query.range : "5d";
+        if (!["5d", "1mo", "6mo", "1y"].includes(range)) {
+          set.status = 400;
+          return apiError(
+            request,
+            "INVALID_RANGE",
+            "Choose 5d, 1mo, 6mo, or 1y.",
+          );
+        }
+        try {
+          const history = await (deps.history ?? fetchHistoricalCandles)(
+            instrument,
+            range as HistoryRange,
+          );
+          set.headers["cache-control"] = "public, max-age=300";
+          return history;
+        } catch {
+          set.status = 502;
+          return apiError(
+            request,
+            "HISTORY_UNAVAILABLE",
+            "Historical prices are temporarily unavailable.",
+          );
+        }
       },
     )
     .get(

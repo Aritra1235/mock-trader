@@ -183,6 +183,23 @@ const document = {
       "Instrument",
       [{ $ref: "#/components/parameters/InstrumentId" }],
     ),
+    "/api/v1/market/instruments/{id}/history": {
+      get: {
+        tags: ["Market Data"],
+        operationId: "getInstrumentHistory",
+        parameters: [
+          { $ref: "#/components/parameters/InstrumentId" },
+          query("range", { enum: ["5d", "1mo", "6mo", "1y"] }),
+        ],
+        responses: {
+          "200": jsonResponse("InstrumentHistoryResponse"),
+          "400": errorResponses["400"],
+          "404": errorResponses["404"],
+          "422": errorResponses["422"],
+          "502": { description: "Historical price source unavailable" },
+        },
+      },
+    },
     "/api/v1/market/quotes": publicGet("getQuotes", "QuotesResponse", [
       query("ids", { type: "string" }, true),
       query("mode", { enum: ["LTP", "QUOTE", "FULL"] }),
@@ -438,6 +455,37 @@ const document = {
       ReadinessResponse: { type: "object", additionalProperties: true },
       MarketStatsResponse: { type: "object", additionalProperties: true },
       InstrumentSearchResponse: { type: "array", items: ref("Instrument") },
+      HistoricalBar: {
+        type: "object",
+        required: ["timestamp", "open", "high", "low", "close", "volume"],
+        properties: {
+          timestamp: { type: "integer", description: "Unix milliseconds" },
+          open: { type: "number" },
+          high: { type: "number" },
+          low: { type: "number" },
+          close: { type: "number" },
+          volume: { type: "number" },
+        },
+      },
+      InstrumentHistoryResponse: {
+        type: "object",
+        required: [
+          "instrumentKey",
+          "symbol",
+          "source",
+          "interval",
+          "range",
+          "bars",
+        ],
+        properties: {
+          instrumentKey: { type: "string" },
+          symbol: { type: "string" },
+          source: { const: "Yahoo Finance" },
+          interval: { enum: ["15m", "1d"] },
+          range: { enum: ["5d", "1mo", "6mo", "1y"] },
+          bars: { type: "array", items: ref("HistoricalBar") },
+        },
+      },
       QuotesResponse: { type: "object", additionalProperties: true },
     },
   },
