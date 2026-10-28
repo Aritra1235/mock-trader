@@ -40,7 +40,7 @@ bun run db:migrate
 Route traffic that sends market commands only when:
 
 ```bash
-curl http://localhost:3000/ready
+curl http://localhost:5000/ready
 ```
 
 returns `"ready": true`.

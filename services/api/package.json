@@ -19,7 +19,7 @@
     "paytm:login-url": "bun run scripts/paytm-login-url.ts",
     "paytm:exchange-token": "bun run scripts/paytm-exchange-token.ts",
     "paytm:session": "bun run scripts/paytm-session-status.ts",
-    "verify:paytm": "bun run scripts/verify-paytm-market-data.ts",
+    "paytm:verify": "bun run scripts/verify-paytm-market-data.ts",
     "fraud:all": "bun run fraud:account-integrity && bun run fraud:sessions && bun run fraud:leaderboard && bun run fraud:leaderboard:portfolio && bun run fraud:trades && bun run fraud:trading:collusion && bun run fraud:market-manipulation",
     "fraud:account-integrity": "bun run scripts/fraud/accounts/integrity.ts",
     "fraud:sessions": "bun run scripts/fraud/sessions/anomalies.ts",

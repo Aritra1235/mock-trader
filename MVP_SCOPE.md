@@ -44,7 +44,7 @@ features.
 - Error bodies use `{ "error": { "code", "message", "requestId" } }`.
 - Browser authentication uses credentialed cookies. Frontend origins must be
   listed in `APP_ORIGINS`.
-- The local frontend runs on port `3001`; the API runs on port `3000`.
+- The local frontend runs on port `3001`; the API runs on port `5000`.
 
 ## Frontend bootstrap sequence
 

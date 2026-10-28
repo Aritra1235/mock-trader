@@ -49,8 +49,8 @@ function asMode(input: string | undefined): MarketMode {
 function loadServiceConfig(): ServiceConfig {
   return {
     name: process.env.SERVICE_NAME ?? "mock-trader-api",
-    port: asPositiveInt(process.env.PORT, 3000),
-    publicUrl: process.env.API_PUBLIC_URL ?? "http://localhost:3000",
+    port: asPositiveInt(process.env.PORT, 5000),
+    publicUrl: process.env.API_PUBLIC_URL ?? "http://localhost:5000",
     allowedOrigins: csv(process.env.APP_ORIGINS ?? "http://localhost:3001"),
   };
 }

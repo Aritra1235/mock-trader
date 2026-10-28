@@ -4,10 +4,10 @@ The frozen MVP decisions live in [`MVP_SCOPE.md`](../../../MVP_SCOPE.md).
 
 ## Local endpoints
 
-- API: `http://localhost:3000`
+- API: `http://localhost:5000`
 - Frontend: `http://localhost:3001`
-- REST base: `http://localhost:3000/api/v1`
-- WebSocket: `ws://localhost:3000/ws/market`
+- REST base: `http://localhost:5000/api/v1`
+- WebSocket: `ws://localhost:5000/ws/market`
 
 Set `credentials: "include"` on browser HTTP requests. Configure the exact
 frontend origin in `APP_ORIGINS`; wildcard origins are not supported with

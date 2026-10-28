@@ -205,8 +205,8 @@
                 <p class="text-sm text-muted">Launch the HTTP and WebSocket server:</p>
                 <pre class="mt-2 overflow-x-auto rounded-lg bg-base p-3 font-mono text-sm text-text">bun run dev</pre>
                 <p class="mt-1 text-xs text-muted">
-                  Starts on port 3000 by default. Verify with
-                  <code class="rounded bg-surface px-1 font-mono text-text">curl http://localhost:3000/ready</code>.
+                  Starts on port 5000 by default. Verify with
+                  <code class="rounded bg-surface px-1 font-mono text-text">curl http://localhost:5000/ready</code>.
                   Hot-reload is enabled for development.
                 </p>
               </div>
@@ -307,9 +307,9 @@
           <div class="rounded-xl border border-border bg-surface p-5">
             <h3 class="font-semibold">API smoke test</h3>
             <p class="text-sm text-muted">Run these curl commands back-to-back:</p>
-            <pre class="mt-2 overflow-x-auto rounded-lg bg-base p-3 font-mono text-sm text-text">curl http://localhost:3000/ready
-curl "http://localhost:3000/v1/market/instruments/search?q=RELIANCE&limit=1"
-curl "http://localhost:3000/v1/market/quotes?ids=RELIANCE&mode=QUOTE"</pre>
+            <pre class="mt-2 overflow-x-auto rounded-lg bg-base p-3 font-mono text-sm text-text">curl http://localhost:5000/ready
+curl "http://localhost:5000/v1/market/instruments/search?q=RELIANCE&limit=1"
+curl "http://localhost:5000/v1/market/quotes?ids=RELIANCE&mode=QUOTE"</pre>
             <p class="mt-2 text-sm text-muted">
               Expected results:
             </p>

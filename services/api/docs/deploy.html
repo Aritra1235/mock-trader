@@ -108,7 +108,7 @@
               service behind the load balancer.
             </p>
             <div class="mt-3 rounded-lg bg-base p-3 text-xs font-mono text-muted">
-              ports: 3000 (HTTP/WS)
+              ports: 5000 (HTTP/WS)
             </div>
           </div>
 
@@ -219,7 +219,7 @@
 
   api:
     build: ..
-    ports: ["3000:3000"]
+    ports: ["5000:5000"]
     depends_on: [redis, postgres]
     env_file: ../.env
     volumes: [../data:/app/data]
@@ -256,7 +256,7 @@
             <tr><td class="px-3 py-2 font-mono text-xs">REDIS_DATABASE</td><td class="px-3 py-2 text-xs text-green">yes</td><td class="px-3 py-2 text-xs text-muted">Redis database index for the market backplane.</td></tr>
             <tr><td class="px-3 py-2 font-mono text-xs">DATABASE_URL</td><td class="px-3 py-2 text-xs text-green">yes</td><td class="px-3 py-2 text-xs text-muted">Postgres connection URL used by Drizzle.</td></tr>
             <tr><td class="px-3 py-2 font-mono text-xs">DATABASE_POOL_MAX</td><td class="px-3 py-2 text-xs text-muted">no</td><td class="px-3 py-2 text-xs text-muted">Maximum Postgres pool size (default: 10).</td></tr>
-            <tr><td class="px-3 py-2 font-mono text-xs">PORT</td><td class="px-3 py-2 text-xs text-muted">no</td><td class="px-3 py-2 text-xs text-muted">API server port (default: 3000).</td></tr>
+            <tr><td class="px-3 py-2 font-mono text-xs">PORT</td><td class="px-3 py-2 text-xs text-muted">no</td><td class="px-3 py-2 text-xs text-muted">API server port (default: 5000).</td></tr>
           </tbody>
         </table>
 
@@ -332,7 +332,7 @@
         <div class="mt-5 grid gap-4 lg:grid-cols-2">
           <div class="rounded-xl border border-border bg-surface p-5">
             <h3 class="font-semibold">Check command</h3>
-            <pre class="mt-2 overflow-x-auto rounded-lg bg-base p-3 font-mono text-sm text-text">curl http://localhost:3000/ready</pre>
+            <pre class="mt-2 overflow-x-auto rounded-lg bg-base p-3 font-mono text-sm text-text">curl http://localhost:5000/ready</pre>
           </div>
           <div class="rounded-xl border border-border bg-surface p-5">
             <h3 class="font-semibold">Healthy response (200)</h3>

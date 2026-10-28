@@ -12,7 +12,7 @@ test("app exposes health, instrument search, and quotes", async () => {
   const env: AppEnv = {
     service: {
       name: "mock-trader-api",
-      port: 3000,
+      port: 5000,
     },
     redis: {
       url: "redis://localhost:6379",

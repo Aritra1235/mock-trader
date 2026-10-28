@@ -37,7 +37,7 @@ jobs:
       PAYTM_SECRET_KEY: ci-placeholder
       GOOGLE_CLIENT_ID: ci-placeholder
       GOOGLE_CLIENT_SECRET: ci-placeholder
-      BETTER_AUTH_URL: http://localhost:3000
+      BETTER_AUTH_URL: http://localhost:5000
       BETTER_AUTH_SECRET: ci-only-secret-that-is-longer-than-thirty-two-characters
       APP_ORIGINS: http://localhost:3001
     steps:

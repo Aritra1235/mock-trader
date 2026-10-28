@@ -46,3 +46,6 @@ package-lock.json
 # Paytm session tokens (generated after login)
 /data/paytm-session.json
 /data/instruments.snapshot.json
+
+# Local planning notes; not implementation
+/future-work/

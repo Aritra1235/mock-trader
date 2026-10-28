@@ -39,7 +39,7 @@ const document = {
     description:
       "Frozen frontend contract for the INR, market-orders-only Mock Trader MVP.",
   },
-  servers: [{ url: process.env.API_PUBLIC_URL ?? "http://localhost:3000" }],
+  servers: [{ url: process.env.API_PUBLIC_URL ?? "http://localhost:5000" }],
   tags: [
     { name: "Authentication" },
     { name: "Onboarding" },

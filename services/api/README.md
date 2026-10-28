@@ -43,7 +43,7 @@ bun run db:generate
 Check readiness:
 
 ```bash
-curl http://localhost:3000/ready
+curl http://localhost:5000/ready
 ```
 
 ## Private Paytm commands

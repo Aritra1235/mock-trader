@@ -1,0 +1,15 @@
+{
+  "name": "mock-trader",
+  "private": true,
+  "scripts": {
+    "install:apps": "bun install --cwd services/api && bun install --cwd services/next-web && bun install --cwd services/workers",
+    "dev": "bun run --parallel dev:api dev:web dev:worker",
+    "dev:api": "bun run --cwd services/api dev",
+    "dev:web": "bun run --cwd services/next-web dev",
+    "dev:worker": "bun run --cwd services/api worker:ingest",
+    "dev:standalone-worker": "bun run --cwd services/workers price-ingest",
+    "db:up": "docker compose -f services/api/deploy/docker-compose.yml up -d redis postgres",
+    "db:down": "docker compose -f services/api/deploy/docker-compose.yml down",
+    "db:migrate": "bun run --cwd services/api db:migrate"
+  }
+}
