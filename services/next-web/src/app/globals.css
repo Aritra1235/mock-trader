@@ -252,6 +252,7 @@ kbd {
 
 /* layout */
 .terminal {
+  --topbar: 102px;
   height: 100dvh;
   overflow: hidden;
   display: flex;
@@ -262,6 +263,7 @@ kbd {
   flex: none;
   display: grid;
   grid-template-columns: var(--watch-width) 1fr auto auto;
+  grid-template-rows: 52px 50px;
   align-items: center;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
@@ -275,6 +277,44 @@ kbd {
   padding: 0 16px;
   height: 100%;
   border-right: 1px solid var(--border);
+}
+.index-bar {
+  grid-column: 1 / -1;
+  align-self: stretch;
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  border-top: 1px solid var(--border);
+  background: var(--raised);
+}
+.index-quote {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-content: center;
+  column-gap: 12px;
+  row-gap: 2px;
+  padding: 4px 16px;
+  border-right: 1px solid var(--border);
+  white-space: nowrap;
+  font-size: 11px;
+}
+.index-name {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.index-price {
+  text-align: right;
+  font-size: 12px;
+  font-weight: 600;
+}
+.index-change {
+  font-size: 10px;
+}
+.index-status {
+  color: var(--text-3);
+  text-align: right;
+  font-size: 10px;
 }
 .drawer-toggle {
   display: none;
@@ -2349,6 +2389,12 @@ tr:focus-within .row-actions,
   }
 }
 @media (max-width: 640px) {
+  .index-quote {
+    flex: 1;
+    min-width: 0;
+    column-gap: 6px;
+    padding-inline: 10px;
+  }
   .screen {
     padding-bottom: 32px;
   }

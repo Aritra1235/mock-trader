@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { marketSession } from "@/lib/market";
 import { AuthScreen } from "./auth-screen";
+import { IndexBar } from "./index-bar";
 import { Onboarding } from "./onboarding";
 import { OrderWindow } from "./order-window";
 import { ThemeToggle } from "./theme-toggle";
@@ -75,6 +76,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
         <ThemeToggle className="topbar-theme" />
         <UserMenu />
+        <IndexBar />
       </header>
       {trader.auth === "offline" && (
         <div className="banner banner-error">
