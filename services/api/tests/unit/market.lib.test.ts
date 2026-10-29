@@ -15,6 +15,18 @@ test("parseSecurityMaster builds searchable instruments", () => {
   expect(records[1]?.instrumentKey).toBe("NSE:INDEX:13");
 });
 
+test("Paytm index rows with blank symbols use their names and INDEX subscriptions", () => {
+  const header = sampleSecurityMaster.split("\n")[0];
+  const records = parseSecurityMaster(`${header}
+"13","","NIFTY","","","","I","","NSE","","","","",""
+"51","","SENSEX","","","","I","","BSE","","","","",""`);
+  expect(records.map((record) => record.instrumentKey)).toEqual([
+    "NSE:INDEX:13",
+    "BSE:INDEX:51",
+  ]);
+  expect(records.map((record) => record.symbol)).toEqual(["NIFTY", "SENSEX"]);
+});
+
 test("aggregateCandles rolls 1m candles into larger buckets", () => {
   const first = createOrMergeCandle(null, 100, Date.UTC(2026, 0, 1, 9, 15), 10);
   const second = createOrMergeCandle(

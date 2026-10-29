@@ -101,6 +101,7 @@ export function inferScripType(
     return "ETF";
   }
   if (
+    upperType === "I" ||
     upperType.includes("INDEX") ||
     segment.toUpperCase() === "I" ||
     symbol.includes("NIFTY")
@@ -163,7 +164,7 @@ export function parseSecurityMaster(csv: string) {
     );
     const securityId = raw.security_id;
     const exchange = raw.exchange.toUpperCase();
-    const symbol = raw.symbol.toUpperCase();
+    const symbol = (raw.symbol || raw.name || "").toUpperCase();
     const segment = raw.segment.toUpperCase();
     const instrumentType = raw.instrument_type.toUpperCase();
     const scripType = inferScripType(instrumentType, symbol, segment);

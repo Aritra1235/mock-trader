@@ -211,6 +211,22 @@ export class CatalogService {
   }
 
   private replaceRecords(records: InstrumentRecord[]) {
+    // Older snapshots classified Paytm's instrument_type=I rows as equities.
+    // Repair them on load as well as when the security master is refreshed.
+    records = records.map((record) =>
+      record.instrumentType === "I"
+        ? {
+            ...record,
+            instrumentKey: buildInstrumentKey(
+              record.exchange,
+              "INDEX",
+              record.securityId,
+            ),
+            scripType: "INDEX",
+            symbol: record.symbol || record.name.toUpperCase(),
+          }
+        : record,
+    );
     this.instruments = new Map(
       records.map((record) => [record.instrumentKey, record]),
     );
