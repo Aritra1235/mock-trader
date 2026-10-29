@@ -226,3 +226,45 @@ test("gateway keeps connection state across Elysia websocket wrappers", async ()
   ).toBeTrue();
   expect(leases.published).toHaveLength(1);
 });
+
+test("gateway re-announces active subscriptions on each heartbeat", async () => {
+  const catalog = await makeCatalog("/tmp/mock-trader-catalog-reannounce.json");
+  const leases = new InMemoryLeases();
+  const gateway = new MarketGateway(
+    "gateway-test",
+    catalog,
+    leases,
+    new InMemoryStore(),
+    "QUOTE",
+    10,
+    60_000,
+    20,
+    60_000,
+  );
+  await gateway.start();
+
+  const { socket } = createFakeSocket();
+  gateway.open(socket);
+  await gateway.message(socket, {
+    type: "subscribe",
+    symbols: [{ symbol: "RELIANCE" }],
+  });
+  // Simulate the worker having missed the original subscribe.
+  leases.published = [];
+
+  await Bun.sleep(60);
+  gateway.stop();
+
+  const control = leases.published.map(
+    (message) =>
+      JSON.parse(message) as { action: string; subscriptionKey: string },
+  );
+  expect(control.length).toBeGreaterThan(0);
+  expect(
+    control.every(
+      (message) =>
+        message.action === "subscribe" &&
+        message.subscriptionKey === "NSE:EQUITY:3456:QUOTE",
+    ),
+  ).toBeTrue();
+});

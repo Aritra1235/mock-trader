@@ -59,7 +59,7 @@ export class MarketGateway {
     });
 
     this.heartbeatTimer = setInterval(() => {
-      void this.refreshLeases();
+      void this.refreshLeases().then(() => this.reannounceSubscriptions());
     }, this.heartbeatMs);
 
     this.sweepTimer = setInterval(() => {
@@ -337,6 +337,27 @@ export class MarketGateway {
         this.memberKey(state.id),
         expiresAt,
       );
+    }
+  }
+
+  /**
+   * Control messages are fire-and-forget pub/sub, so a subscribe sent while the
+   * ingest worker was down or restarting is lost for good. Re-announce every
+   * active subscription on each heartbeat; the worker ignores ones it already has.
+   */
+  private async reannounceSubscriptions() {
+    for (const [subscriptionKey, subscribers] of this.subscriptionSubscribers) {
+      if (subscribers.size === 0) {
+        continue;
+      }
+      const preference = findPreference(
+        subscriptionKey,
+        this.states,
+        this.sockets,
+      );
+      if (preference) {
+        await this.publishControl("subscribe", subscriptionKey, preference);
+      }
     }
   }
 
