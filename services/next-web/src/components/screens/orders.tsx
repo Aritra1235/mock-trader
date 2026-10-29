@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
+import { apiClient } from "@/lib/api-client";
 import { price, quantity, rupees, stamp } from "@/lib/format";
-import { num, str } from "@/lib/market";
+import { INTRADAY_MARGIN_RATE, num, str } from "@/lib/market";
 import {
   Empty,
   InstrumentCell,
@@ -53,7 +55,33 @@ export function OrdersScreen({ tab }: { tab: OrdersTab }) {
 }
 
 function OrderBook() {
-  const { orders, instruments } = useTrader();
+  const { orders, instruments, refresh, notify } = useTrader();
+  const [canceling, setCanceling] = useState<string | null>(null);
+  const cancelOrder = async (orderId: string) => {
+    if (canceling) return;
+    setCanceling(orderId);
+    try {
+      const response = await apiClient.POST("/api/v1/orders/{orderId}/cancel", {
+        params: { path: { orderId } },
+        body: { reason: "Canceled from Orders." },
+      });
+      if (response.error) throw new Error(response.error.error.message);
+      notify({
+        tone: "success",
+        title: "Order canceled",
+        body: "Reserved funds and shares have been released.",
+      });
+    } catch (error) {
+      notify({
+        tone: "error",
+        title: "Could not cancel order",
+        body: error instanceof Error ? error.message : "Try again shortly.",
+      });
+    } finally {
+      await refresh();
+      setCanceling(null);
+    }
+  };
   if (orders.length === 0)
     return (
       <section className="panel">
@@ -73,13 +101,20 @@ function OrderBook() {
               <th>Instrument</th>
               <th>Product</th>
               <th className="r">Qty.</th>
+              <th className="r">Limit price</th>
               <th className="r">Avg. price</th>
               <th className="r">Status</th>
+              <th className="r">Action</th>
             </tr>
           </thead>
           <tbody>
             {orders.map((o) => {
-              const reason = str((o as Record<string, unknown>).rejectedReason);
+              const reason = o.rejectedReason || o.canceledReason;
+              const canCancel = [
+                "queued",
+                "accepted",
+                "partially_filled",
+              ].includes(o.status);
               return (
                 <tr key={o.id}>
                   <td className="muted num">
@@ -94,13 +129,38 @@ function OrderBook() {
                       instrument={instruments[o.instrumentId]}
                     />
                   </td>
-                  <td className="muted">MARKET · DAY</td>
+                  <td className="muted">
+                    {o.product === "intraday" ? "MIS" : "CNC"} ·{" "}
+                    {o.type.toUpperCase()} · {o.timeInForce.toUpperCase()}
+                    {o.source === "auto_square_off" && (
+                      <span
+                        className="product-mark"
+                        title="Closed automatically at the 3:20 pm IST intraday square-off"
+                      >
+                        AUTO SQ-OFF
+                      </span>
+                    )}
+                  </td>
                   <td className="r num">
                     {quantity(o.filledQuantity)} / {quantity(o.quantity)}
                   </td>
+                  <td className="r num">{price(o.limitPrice)}</td>
                   <td className="r num">{price(o.averageFillPrice)}</td>
                   <td className="r" title={reason || undefined}>
                     <StatusTag status={o.status} />
+                  </td>
+                  <td className="r">
+                    {canCancel && (
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        aria-label={`Cancel ${instruments[o.instrumentId]?.symbol ?? "order"}`}
+                        disabled={canceling !== null}
+                        onClick={() => void cancelOrder(o.id)}
+                      >
+                        {canceling === o.id ? "Canceling…" : "Cancel"}
+                      </button>
+                    )}
                   </td>
                 </tr>
               );
@@ -171,7 +231,17 @@ function TradeBook() {
 }
 
 function Funds() {
-  const { account, ledger } = useTrader();
+  const { account, ledger, positions } = useTrader();
+  const intradayMargin = positions
+    .filter((p) => p.product === "intraday")
+    .reduce(
+      (total, p) =>
+        total +
+        INTRADAY_MARGIN_RATE *
+          Math.abs(num(p.quantity) ?? 0) *
+          (num(p.averageCost) ?? 0),
+      0,
+    );
   return (
     <>
       <div className="funds-grid">
@@ -185,11 +255,19 @@ function Funds() {
               <dd className="num">{rupees(account?.mockBuyingPower)}</dd>
             </div>
             <div>
-              <dt>Used margin</dt>
+              <dt>Held for open orders</dt>
               <dd className="num">{rupees(account?.reservedMockCash)}</dd>
             </div>
             <div>
-              <dt>Cash balance</dt>
+              <dt title="20% of the entry value of open intraday positions">
+                Intraday margin
+              </dt>
+              <dd className="num">{rupees(intradayMargin)}</dd>
+            </div>
+            <div>
+              <dt title="Goes negative while intraday buys are open on margin">
+                Cash balance
+              </dt>
               <dd className="num">{rupees(account?.mockCashBalance)}</dd>
             </div>
             <div>

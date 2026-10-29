@@ -299,6 +299,15 @@ kbd {
   font-size: 11.5px;
   color: var(--text-2);
 }
+.feed-status.feed-live {
+  color: var(--up);
+}
+.feed-status.feed-warn {
+  color: var(--warn);
+}
+.feed-status.feed-muted {
+  color: var(--text-3);
+}
 .market-status .sep {
   width: 1px;
   height: 12px;
@@ -1252,193 +1261,242 @@ tr:focus-within .row-actions,
   grid-template-columns: 1fr 1fr;
 }
 
-/* order window */
-.order-backdrop {
+/* order ticket */
+.ticket {
+  --accent: var(--buy);
+  --accent-soft: var(--brand-soft);
   position: fixed;
-  inset: 0;
-  background: var(--backdrop);
-  display: grid;
-  place-items: start center;
-  padding-top: 12vh;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
   z-index: 50;
-  animation: fade 0.12s ease-out;
+  width: min(420px, calc(100vw - 24px));
+  max-height: calc(100vh - var(--topbar) - 32px);
+  overflow-y: auto;
+  background: var(--raised);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  box-shadow: 0 16px 40px rgba(var(--shadow-rgb), 0.22);
+  animation: ticket-in 0.14s ease-out;
 }
-.order-window {
-  width: min(560px, calc(100vw - 24px));
-  background: var(--surface);
-  border-radius: 6px;
-  box-shadow: 0 24px 60px rgba(var(--shadow-rgb), 0.25);
-  overflow: hidden;
-  animation: rise 0.14s ease-out;
+.ticket.sell {
+  --accent: var(--sell);
+  --accent-soft: var(--sell-soft);
 }
-.order-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px;
-  color: #fff;
-  background: var(--buy);
-}
-.order-window.sell .order-head {
-  background: var(--sell);
-}
-.order-title {
-  font-size: 15px;
-  font-weight: 600;
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-.order-exch {
-  font-size: 11px;
-  font-weight: 500;
-  opacity: 0.85;
-}
-.order-qty {
-  font-size: 12px;
-  font-weight: 400;
-  opacity: 0.85;
-}
-.order-ltp {
-  font-size: 12.5px;
-  margin-top: 2px;
-  opacity: 0.95;
-  display: flex;
-  gap: 6px;
-  align-items: center;
-}
-.order-ltp .up,
-.order-ltp .down {
-  color: #fff;
-}
-.order-flag {
-  font-size: 10.5px;
-  background: rgba(255, 255, 255, 0.2);
-  padding: 0 6px;
-  border-radius: 3px;
-}
-.order-head-right {
+.ticket-head {
   display: flex;
   align-items: center;
   gap: 10px;
+  padding: 14px 10px 14px 16px;
+  border-bottom: 1px solid var(--border);
 }
-.side-switch {
-  border: 0;
-  margin: 0;
+.ticket-title {
+  flex: 1;
   min-width: 0;
+}
+.ticket-id {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.ticket-id strong {
+  font-size: 15px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ticket-id small {
+  font-size: 11px;
+  color: var(--text-3);
+}
+.ticket-ltp {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.ticket-flag {
+  margin-left: 6px;
+  color: var(--warn);
+}
+
+/* segmented control built on radios */
+.ticket-seg {
   display: inline-flex;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 14px;
+  margin: 0;
   padding: 2px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--muted-bg);
 }
-.side-switch button {
+.ticket-seg label {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  min-width: 52px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-3);
+  cursor: pointer;
+  transition:
+    background 0.12s,
+    color 0.12s;
+}
+.ticket-seg label:hover {
+  color: var(--text);
+}
+.ticket-seg input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.ticket-seg label:has(input:checked) {
+  background: var(--raised);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(var(--shadow-rgb), 0.25);
+}
+.ticket-seg label:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.ticket-side label.buy:has(input:checked) {
+  background: var(--buy);
+  color: #fff;
+}
+.ticket-side label.sell:has(input:checked) {
+  background: var(--sell);
+  color: #fff;
+}
+.ticket-close {
+  display: grid;
+  place-items: center;
   width: 28px;
-  height: 22px;
-  border-radius: 11px;
-  font-size: 11.5px;
-  font-weight: 700;
-  color: rgba(255, 255, 255, 0.85);
+  height: 28px;
+  border-radius: 6px;
+  color: var(--text-3);
 }
-.side-switch button.on {
-  background: #fff;
+.ticket-close:hover {
+  background: var(--hover);
+  color: var(--text);
 }
-.side-switch button.on.buy {
-  color: var(--buy);
-}
-.side-switch button.on.sell {
-  color: var(--sell);
-}
-.order-body {
-  padding: 18px 16px 14px;
+.ticket-body {
   display: grid;
   gap: 14px;
+  padding: 16px;
 }
-.order-fields {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-}
-.field {
-  display: grid;
-  gap: 5px;
-  align-content: start;
-}
-.field > span {
-  font-size: 12px;
-  color: var(--text-2);
-}
-.field input,
-.field select {
-  height: 38px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius);
-  padding: 0 10px;
-  background: var(--surface);
-  outline: 0;
-  width: 100%;
-  color: var(--text);
-  font: inherit;
-}
-.field input:focus,
-.field select:focus {
-  border-color: var(--brand);
-  box-shadow: 0 0 0 3px var(--brand-soft);
-}
-.order-window.sell .field input:focus {
-  border-color: var(--sell);
-  box-shadow: 0 0 0 3px rgba(224, 84, 44, 0.12);
-}
-.field input:disabled {
-  background: var(--muted-bg);
-  color: var(--text-3);
-}
-.order-note {
-  font-size: 12px;
-  color: var(--text-3);
-}
-.order-holding {
-  font-size: 12.5px;
-  color: var(--text-2);
-}
-.order-msg {
-  font-size: 12.5px;
-  padding: 8px 10px;
-  border-radius: var(--radius);
-  background: var(--warn-soft);
-  color: var(--warn-strong);
-  border: 1px solid var(--warn-line);
-}
-.order-msg.error {
-  background: var(--down-soft);
-  color: var(--down-strong);
-  border-color: var(--down-line);
-}
-.order-foot {
+.ticket-opts {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  background: var(--subtle);
-  border-top: 1px solid var(--border);
-}
-.order-margins {
-  display: flex;
-  gap: 16px;
-  font-size: 12px;
-  color: var(--text-3);
+  gap: 10px;
   flex-wrap: wrap;
 }
-.order-margins strong {
-  color: var(--text);
-  font-weight: 600;
+.ticket-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
 }
-.order-actions {
+.ticket-fields label {
   display: flex;
+  align-items: center;
   gap: 8px;
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  cursor: text;
+  transition:
+    border-color 0.12s,
+    box-shadow 0.12s;
 }
-.order-actions .btn {
-  min-width: 90px;
+.ticket-fields label:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.ticket-fields label:has(input:disabled) {
+  background: var(--subtle);
+  border-color: var(--border);
+}
+.ticket-fields span {
+  font-size: 12px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+.ticket-fields input {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: right;
+  outline: 0;
+}
+.ticket-fields input:disabled {
+  color: var(--text-3);
+  font-weight: 400;
+}
+.ticket-fields input::-webkit-inner-spin-button,
+.ticket-fields input::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
+}
+.ticket-fields input[type="number"] {
+  appearance: textfield;
+}
+.ticket-notes {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.ticket-msg {
+  margin: 0;
+  font-size: 12px;
+  color: var(--warn);
+}
+.ticket-msg.error {
+  color: var(--down);
+}
+.ticket-foot {
+  display: grid;
+  gap: 12px;
+  padding: 12px 16px 16px;
+}
+.ticket-foot dl {
+  display: flex;
+  justify-content: space-between;
+  margin: 0;
+  font-size: 12px;
+}
+.ticket-foot dl > div {
+  display: flex;
+  gap: 6px;
+}
+.ticket-foot dt {
+  color: var(--text-3);
+}
+.ticket-foot dd {
+  margin: 0;
+  color: var(--text);
+  font-weight: 500;
+}
+.ticket-foot .btn {
+  width: 100%;
+  height: 42px;
+  border-radius: 8px;
+  font-size: 14px;
 }
 
 /* toasts */
@@ -2136,6 +2194,12 @@ tr:focus-within .row-actions,
     opacity: 0;
   }
 }
+@keyframes ticket-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+}
 @keyframes rise {
   from {
     opacity: 0;
@@ -2319,18 +2383,11 @@ tr:focus-within .row-actions,
   .chart-toolbar .muted {
     display: none;
   }
-  .order-fields {
-    grid-template-columns: 1fr 1fr;
-  }
-  .order-fields .field:first-child {
-    grid-column: 1 / -1;
-  }
-  .order-foot {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .order-actions .btn {
-    flex: 1;
+  .ticket {
+    bottom: 0;
+    width: 100vw;
+    border-radius: 12px 12px 0 0;
+    border-bottom: 0;
   }
   .toolbar {
     flex-direction: column;
@@ -2351,6 +2408,13 @@ tr:focus-within .row-actions,
 }
 
 /* short positions */
+.product-mark {
+  margin-left: 6px;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--warn);
+}
 .short-mark {
   margin-left: 6px;
   font-size: 9.5px;

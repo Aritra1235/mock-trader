@@ -19,6 +19,7 @@ import {
   num,
   obj,
   type PriceView,
+  type Product,
   priceView,
   type QuoteEntry,
   quoteFrom,
@@ -75,8 +76,11 @@ type Trader = {
   closeOf: (instrumentKey: string) => CloseRef | undefined;
   trackQuotes: (keys: string[]) => () => void;
   socketConnected: boolean;
-  ticket: { instrument: Instrument; side: Side } | null;
-  openTicket: (instrument: Instrument, side: Side) => void;
+  /** When the socket last delivered a quote; null until the first tick. */
+  lastTickAt: number | null;
+  ticket: { instrument: Instrument; side: Side; product?: Product } | null;
+  /** Opens the order window; pass a product to act on that position. */
+  openTicket: (instrument: Instrument, side: Side, product?: Product) => void;
   closeTicket: () => void;
   toasts: Toast[];
   notify: (toast: Omit<Toast, "id">) => void;
@@ -186,6 +190,7 @@ export function TraderProvider({ children }: { children: React.ReactNode }) {
   const [quotesAttempted, setQuotesAttempted] = useState(false);
   const [closes, setCloses] = useState<Record<string, CloseRef>>({});
   const [socketConnected, setSocketConnected] = useState(false);
+  const [lastTickAt, setLastTickAt] = useState<number | null>(null);
   const [ticket, setTicket] = useState<Trader["ticket"]>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const toastId = useRef(0);
@@ -296,6 +301,29 @@ export function TraderProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  const hasOpenOrders = orders.some((order) =>
+    ["queued", "accepted", "partially_filled"].includes(order.status),
+  );
+  useEffect(() => {
+    if (auth !== "ready" || !hasOpenOrders) return;
+    let running = false;
+    const sync = async () => {
+      if (running || document.visibilityState === "hidden") return;
+      running = true;
+      try {
+        await refresh();
+      } finally {
+        running = false;
+      }
+    };
+    const timer = setInterval(() => void sync(), 5_000);
+    document.addEventListener("visibilitychange", sync);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", sync);
+    };
+  }, [auth, hasOpenOrders, refresh]);
 
   const signOut = useCallback(async () => {
     try {
@@ -525,11 +553,12 @@ export function TraderProvider({ children }: { children: React.ReactNode }) {
           const payload = JSON.parse(event.data);
           if (payload.type !== "quote") return;
           const quote = quoteFrom(payload.data);
-          if (quote)
-            setQuotes((current) => ({
-              ...current,
-              [quote.instrumentKey]: { quote, stale: false },
-            }));
+          if (!quote) return;
+          setLastTickAt(Date.now());
+          setQuotes((current) => ({
+            ...current,
+            [quote.instrumentKey]: { quote, stale: false },
+          }));
         } catch {
           /* ignore malformed event */
         }
@@ -557,9 +586,9 @@ export function TraderProvider({ children }: { children: React.ReactNode }) {
     [quotes, closes],
   );
   const openTicket = useCallback(
-    (instrument: Instrument, side: Side) => {
+    (instrument: Instrument, side: Side, product?: Product) => {
       remember([instrument]);
-      setTicket({ instrument, side });
+      setTicket({ instrument, side, product });
     },
     [remember],
   );
@@ -587,6 +616,7 @@ export function TraderProvider({ children }: { children: React.ReactNode }) {
     closeOf,
     trackQuotes,
     socketConnected,
+    lastTickAt,
     ticket,
     openTicket,
     closeTicket,

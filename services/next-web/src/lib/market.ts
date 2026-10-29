@@ -160,3 +160,36 @@ export function marketSession(now = new Date()) {
   const open = day >= 1 && day <= 5 && minutes >= 555 && minutes < 930;
   return open ? "open" : "closed";
 }
+
+export type Product = "delivery" | "intraday";
+
+/** Mirrors the API's flat intraday leverage (MVP_PRODUCT.intraday). */
+export const INTRADAY_LEVERAGE = 5;
+export const INTRADAY_MARGIN_RATE = 1 / INTRADAY_LEVERAGE;
+
+/**
+ * Intraday window in IST: new positions until 15:15, exits until the 15:20
+ * auto square-off. Mirrors the API's orderPolicy.
+ */
+export function intradayWindow(now = new Date()) {
+  const ist = new Date(
+    now.getTime() + (now.getTimezoneOffset() + 330) * 60_000,
+  );
+  const day = ist.getDay();
+  const minutes = ist.getHours() * 60 + ist.getMinutes();
+  if (day < 1 || day > 5 || minutes < 555 || minutes >= 920) return "closed";
+  return minutes < 915 ? "open" : "exit_only";
+}
+
+/**
+ * Buying power held for a position on top of the cash its trades moved.
+ * Mirrors positionHold in the API's trading service.
+ */
+export function positionHold(product: Product, qty: number, avgCost: number) {
+  const value = Math.abs(qty) * avgCost;
+  if (product === "intraday")
+    return qty < 0
+      ? (1 + INTRADAY_MARGIN_RATE) * value
+      : (INTRADAY_MARGIN_RATE - 1) * value;
+  return qty < 0 ? 2 * value : 0;
+}

@@ -98,7 +98,8 @@ function InstrumentView({ instrument }: { instrument: Instrument }) {
   const quote = quoteOf(key)?.quote;
   const ref = closeOf(key);
   const watched = isWatched(key);
-  const holding = positions.find((p) => p.instrumentId === key);
+  // Delivery and intraday positions in the same stock are listed separately.
+  const holdings = positions.filter((p) => p.instrumentId === key);
   const [range, setRange] = useState<Range>("5d");
   const [history, setHistory] = useState<{
     status: "loading" | "ready" | "error";
@@ -289,10 +290,20 @@ function InstrumentView({ instrument }: { instrument: Instrument }) {
         )}
       </section>
 
-      {holding && (
-        <section className="panel">
+      {holdings.map((holding) => (
+        <section className="panel" key={holding.id}>
           <div className="panel-head">
-            <h2>Your position</h2>
+            <h2>
+              Your position
+              {holding.product === "intraday" && (
+                <span
+                  className="product-mark"
+                  title="Squared off automatically at 3:20 pm IST"
+                >
+                  MIS
+                </span>
+              )}
+            </h2>
             <Link href="/portfolio" className="link small">
               Holdings
             </Link>
@@ -331,7 +342,7 @@ function InstrumentView({ instrument }: { instrument: Instrument }) {
             </div>
           </dl>
         </section>
-      )}
+      ))}
     </div>
   );
 }

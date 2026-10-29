@@ -52,6 +52,9 @@ const statusTone: Record<string, string> = {
   rejected: "tag-bad",
   canceled: "tag-muted",
   queued: "tag-warn",
+  accepted: "tag-warn",
+  partially_filled: "tag-warn",
+  expired: "tag-muted",
   pending: "tag-warn",
 };
 

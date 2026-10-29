@@ -105,27 +105,50 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   );
 }
 
+const LIVE_TICK_WINDOW_MS = 15_000;
+
 function MarketStatus() {
-  const { socketConnected, auth } = useTrader();
+  const { socketConnected, lastTickAt, auth } = useTrader();
   const [session, setSession] = useState<"open" | "closed" | null>(null);
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const tick = () => setSession(marketSession());
     tick();
     const timer = setInterval(tick, 30_000);
     return () => clearInterval(timer);
   }, []);
+  // Re-check tick age so the badge drops out of "Live" when ticks stop arriving.
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 2_000);
+    return () => clearInterval(timer);
+  }, []);
   if (!session) return null;
+  // An open socket alone proves nothing: "Live" needs a tick within the window.
+  const live = lastTickAt !== null && now - lastTickAt < LIVE_TICK_WINDOW_MS;
+  const feed =
+    auth !== "ready"
+      ? { label: "Feed offline", tone: "muted" }
+      : !socketConnected
+        ? { label: "Reconnecting · polling 30s", tone: "warn" }
+        : live
+          ? { label: "Live ticks", tone: "live" }
+          : session === "open"
+            ? { label: "No ticks · polling 30s", tone: "warn" }
+            : { label: "Feed idle", tone: "muted" };
   return (
     <div className="market-status">
       <span className={`dot ${session === "open" ? "dot-open" : ""}`} />
       <span>NSE {session === "open" ? "open" : "closed"}</span>
       <span className="sep" />
-      <span className={socketConnected ? "" : "muted"}>
-        {auth !== "ready"
-          ? "Feed offline"
-          : socketConnected
-            ? "Live feed"
-            : "Feed reconnecting"}
+      <span
+        className={`feed-status feed-${feed.tone}`}
+        title={
+          lastTickAt
+            ? `Last live tick ${new Date(lastTickAt).toLocaleTimeString()}`
+            : "No live tick received yet"
+        }
+      >
+        {feed.label}
       </span>
     </div>
   );

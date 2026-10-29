@@ -9,7 +9,7 @@ import {
   signedPrice,
   tone,
 } from "@/lib/format";
-import { num } from "@/lib/market";
+import { num, type Product } from "@/lib/market";
 import { Empty, InstrumentCell, PageHeader } from "../bits";
 import { useTrader } from "../trader-provider";
 
@@ -28,6 +28,7 @@ export function useHoldings() {
     const value = invested + pnl;
     return {
       p,
+      product: (p.product ?? "delivery") as Product,
       qty,
       avg,
       ltp,
@@ -131,7 +132,9 @@ export function HoldingsScreen() {
                                 <button
                                   type="button"
                                   className="act act-buy"
-                                  onClick={() => openTicket(instrument, "buy")}
+                                  onClick={() =>
+                                    openTicket(instrument, "buy", r.product)
+                                  }
                                   title="Add"
                                 >
                                   B
@@ -139,7 +142,9 @@ export function HoldingsScreen() {
                                 <button
                                   type="button"
                                   className="act act-sell"
-                                  onClick={() => openTicket(instrument, "sell")}
+                                  onClick={() =>
+                                    openTicket(instrument, "sell", r.product)
+                                  }
                                   title="Exit"
                                 >
                                   S
@@ -152,6 +157,14 @@ export function HoldingsScreen() {
                           {quantity(r.qty)}
                           {r.qty < 0 && (
                             <span className="short-mark">SHORT</span>
+                          )}
+                          {r.product === "intraday" && (
+                            <span
+                              className="product-mark"
+                              title="Intraday: squared off automatically at 3:20 pm IST"
+                            >
+                              MIS
+                            </span>
                           )}
                         </td>
                         <td className="r num">{price(r.avg)}</td>
