@@ -22,6 +22,12 @@ Start the API:
 bun run dev
 ```
 
+The API also runs the limit-order matcher every two seconds. Open orders are
+stored in Postgres and resume after a restart, even without an open browser.
+Limit orders support Day, IOC, and GTC validity; see the
+[trading contract](docs/frontend-handoff.md#trading) for execution and reservation
+rules. The existing schema already contains these order types and fields.
+
 The frontend runs at `http://localhost:3001` and calls this API at
 `http://localhost:5000`. In `.env`, set `PORT=5000`,
 `BETTER_AUTH_URL=http://localhost:5000`, and list every frontend origin in

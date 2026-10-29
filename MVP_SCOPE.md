@@ -10,7 +10,13 @@ the first release.
 - Initial practice balance: **₹10,00,000.00**. The initial credit is recorded
   in the cash ledger exactly once.
 - Google authentication and verified email/password authentication.
-- Market buy and sell orders only, with `day` time-in-force.
+- Market and limit buy/sell orders, with `day`, `ioc`, and `gtc` time-in-force.
+- Limit orders reserve cash/shares and fill only at the limit or better. A
+  server-side matcher runs independently of browser quote subscriptions.
+- Day limits expire at 15:30 IST; after-hours orders belong to the next weekday
+  session. GTC persists until filled/canceled. IOC fills immediately or cancels.
+  The simulator uses weekday 09:15–15:30 IST sessions without holiday or special
+  session calendars. Market orders continue to require a fresh quote immediately.
 - Deterministic, full execution at the latest fresh, tradable backend quote.
 - Zero fees, zero artificial slippage, and no partial fills for the MVP.
 - Instrument lot-size, freeze-quantity, tradability, quote freshness, and
@@ -21,8 +27,8 @@ the first release.
 
 ## Explicitly deferred
 
-- Limit, stop, and stop-limit orders.
-- IOC, FOK, and GTC time-in-force.
+- Stop and stop-limit orders.
+- FOK time-in-force.
 - Account reset.
 - Competition participation and administration in the customer frontend.
 - Watchlists and notifications.

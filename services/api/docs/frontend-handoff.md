@@ -74,8 +74,30 @@ Content-Type: application/json
 {"instrumentId":"RELIANCE","side":"buy","type":"market","quantity":1}
 ```
 
-Only `market` + `day` is supported. Conditional orders and other
-time-in-force values receive a stable `400` error.
+Use `type: "limit"` and a positive `limitPrice` to set a maximum buy price or
+minimum sell price. Prices must align with the instrument's tick size. Both
+order types accept `timeInForce: "day" | "ioc" | "gtc"` (default `day`).
+
+- Day limit orders expire at 15:30 IST. After-hours orders belong to the next
+  weekday session. The simulator does not model holidays or special sessions.
+- IOC fills immediately at the limit or better, or cancels without a reservation.
+- GTC limits remain open until filled or canceled.
+
+The API runtime checks open limits every two seconds during weekday
+09:15–15:30 IST sessions. It refreshes quotes independently of browser
+subscriptions. Execution uses a fresh, tradable quote, with full fills and no
+fees or slippage. Market orders still require an immediately usable quote.
+
+Unfilled responses have `filled: false`, `trade: null`, `position: null`, and
+the current order/account. Pending buys reserve the full limit value. Sells
+reserve held shares plus margin for any short quantity; margin is checked
+again at execution. Retry keys also replay accepted, canceled, expired, and
+rejected orders without duplicating reservations.
+
+Order rows expose `limitPrice`, `timeInForce`, `expiresAt`, and rejection or
+cancellation reasons. Cancel an open order with
+`POST /api/v1/orders/{orderId}/cancel` and optional `{ "reason": "..." }`.
+Cancellation, expiry, rejection, and execution release the order's reservations.
 
 ## Portfolio valuation
 

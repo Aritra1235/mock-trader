@@ -8,6 +8,7 @@ Use [`frontend-handoff.md`](./frontend-handoff.md) for the integration sequence,
 cookie/CORS behavior, idempotent order example, valuation semantics, and live
 quote connection rules.
 
-The REST base is `/api/v1`. The MVP supports INR practice accounts and market
-orders only. The previous provider chart passthrough and conditional-order
-contract are not public frontend APIs.
+The REST base is `/api/v1`. INR practice accounts support market and limit
+orders with Day, IOC, and GTC validity. Stop and stop-limit orders and FOK
+validity are not supported. The previous provider chart passthrough is not a
+public frontend API.
