@@ -11,6 +11,7 @@ import {
 import { session, user } from "../auth/auth-schema";
 import { positions, tradingAccounts } from "./accounts";
 import {
+  orderProduct,
   orderSide,
   orderStatus,
   orderTimeInForce,
@@ -41,6 +42,7 @@ export const orders = pgTable(
     type: orderType("type").notNull(),
     status: orderStatus("status").default("draft").notNull(),
     timeInForce: orderTimeInForce("time_in_force").default("day").notNull(),
+    product: orderProduct("product").default("delivery").notNull(),
     quantity: numeric("quantity", { precision: 24, scale: 8 }).notNull(),
     limitPrice: numeric("limit_price", { precision: 24, scale: 8 }),
     stopPrice: numeric("stop_price", { precision: 24, scale: 8 }),

@@ -17,6 +17,7 @@ import {
   accountType,
   ledgerEntryStatus,
   ledgerEntryType,
+  orderProduct,
 } from "./enums";
 import { instruments } from "./market";
 
@@ -115,6 +116,7 @@ export const positions = pgTable(
     instrumentId: text("instrument_id")
       .notNull()
       .references(() => instruments.id, { onDelete: "restrict" }),
+    product: orderProduct("product").default("delivery").notNull(),
     quantity: numeric("quantity", { precision: 24, scale: 8 })
       .default("0")
       .notNull(),
@@ -140,9 +142,10 @@ export const positions = pgTable(
       .notNull(),
   },
   (table) => [
-    uniqueIndex("positions_account_instrument_idx").on(
+    uniqueIndex("positions_account_instrument_product_idx").on(
       table.accountId,
       table.instrumentId,
+      table.product,
     ),
     index("positions_instrument_idx").on(table.instrumentId),
   ],

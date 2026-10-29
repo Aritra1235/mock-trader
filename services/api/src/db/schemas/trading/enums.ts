@@ -54,6 +54,10 @@ export const orderTimeInForce = pgEnum("order_time_in_force", [
   "fok",
 ]);
 
+// Delivery (CNC) holds overnight on full cash; intraday (MIS) trades on margin
+// and is squared off before the close.
+export const orderProduct = pgEnum("order_product", ["delivery", "intraday"]);
+
 export const orderStatus = pgEnum("order_status", [
   "draft",
   "queued",
