@@ -1,8 +1,15 @@
 export const MVP_PRODUCT = {
   currency: "INR",
   initialPracticeBalance: 1_000_000,
-  orderTypes: ["market"] as const,
-  timeInForce: ["day"] as const,
+  orderTypes: ["market", "limit"] as const,
+  timeInForce: ["day", "gtc", "ioc"] as const,
+  products: ["delivery", "intraday"] as const,
+  intraday: {
+    // Flat leverage for every stock; real brokers set it per instrument.
+    leverage: 5,
+    entryCutoff: "15:15",
+    squareOffAt: "15:20",
+  },
   execution: {
     priceSource: "latest_fresh_quote",
     fees: 0,
@@ -11,7 +18,7 @@ export const MVP_PRODUCT = {
   },
   features: {
     marketOrders: true,
-    conditionalOrders: false,
+    conditionalOrders: true,
     competitions: false,
     watchlists: false,
     accountReset: false,

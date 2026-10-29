@@ -2965,6 +2965,22 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/orders/{orderId}/cancel": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["cancelOrder"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/market/stats": {
     parameters: {
       query?: never;
@@ -3379,6 +3395,8 @@ export interface components {
       id?: string;
       accountId?: string;
       instrumentId?: string;
+      /** @enum {unknown} */
+      product?: "delivery" | "intraday";
       quantity?: components["schemas"]["Decimal"];
       availableQuantity?: components["schemas"]["Decimal"];
       averageCost?: components["schemas"]["Decimal"];
@@ -3402,12 +3420,30 @@ export interface components {
       instrumentId?: string;
       /** @enum {unknown} */
       side?: "buy" | "sell";
-      /** @constant */
-      type?: "market";
       /** @enum {unknown} */
-      status?: "queued" | "filled" | "canceled" | "rejected";
-      /** @constant */
-      timeInForce?: "day";
+      type?: "market" | "limit";
+      /** @enum {unknown} */
+      status?:
+        | "queued"
+        | "accepted"
+        | "partially_filled"
+        | "filled"
+        | "canceled"
+        | "rejected"
+        | "expired";
+      /** @enum {unknown} */
+      timeInForce?: "day" | "gtc" | "ioc";
+      /** @enum {unknown} */
+      product?: "delivery" | "intraday";
+      /** @description api for user orders; auto_square_off for intraday square-offs. */
+      source?: string;
+      limitPrice?: components["schemas"]["Decimal"] | null;
+      stopPrice?: components["schemas"]["Decimal"] | null;
+      /** Format: date-time */
+      expiresAt?: string | null;
+      rejectedReason?: string | null;
+      canceledReason?: string | null;
+      notionalEstimate?: components["schemas"]["Decimal"] | null;
       quantity?: components["schemas"]["Decimal"];
       filledQuantity?: components["schemas"]["Decimal"];
       averageFillPrice?: components["schemas"]["Decimal"] | null;
@@ -3425,14 +3461,23 @@ export interface components {
       instrumentId: string;
       /** @enum {unknown} */
       side: "buy" | "sell";
-      /** @constant */
-      type: "market";
+      /** @enum {unknown} */
+      type: "market" | "limit";
       quantity: number;
+      /** @description Required for limit orders; must align with the instrument tick size. */
+      limitPrice?: number | null;
       /**
+       * @description Intraday orders accept day or ioc only.
        * @default day
-       * @constant
+       * @enum {unknown}
        */
-      timeInForce: "day";
+      timeInForce: "day" | "gtc" | "ioc";
+      /**
+       * @description delivery holds on full cash; intraday trades on 5x margin and is squared off at 15:20 IST.
+       * @default delivery
+       * @enum {unknown}
+       */
+      product: "delivery" | "intraday";
       clientOrderId?: string;
       metadata?: {
         [key: string]: unknown;
@@ -3440,16 +3485,19 @@ export interface components {
     };
     PlaceOrderResponse: {
       order: components["schemas"]["Order"];
-      trade: components["schemas"]["Trade"];
+      trade: components["schemas"]["Trade"] | null;
       account: components["schemas"]["PublicAccount"];
-      position: components["schemas"]["Position"];
+      position: components["schemas"]["Position"] | null;
       realizedPnl?: number;
-      /** @constant */
-      filled: true;
+      filled: boolean;
       replayed: boolean;
     };
     PositionsResponse: {
       positions: components["schemas"]["Position"][];
+    };
+    CancelOrderResponse: {
+      order: components["schemas"]["Order"];
+      releasedReservations: number;
     };
     OrdersResponse: {
       orders: components["schemas"]["Order"][];
@@ -8147,6 +8195,39 @@ export interface operations {
       };
       401: components["responses"]["Unauthorized"];
       404: components["responses"]["NotFound"];
+    };
+  };
+  cancelOrder: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        orderId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: {
+      content: {
+        "application/json": {
+          reason?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Successful response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CancelOrderResponse"];
+        };
+      };
+      400: components["responses"]["InvalidRequest"];
+      401: components["responses"]["Unauthorized"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      422: components["responses"]["Unprocessable"];
     };
   };
   marketStats: {

@@ -3,7 +3,7 @@
   "info": {
     "title": "Mock Trader API",
     "version": "2.0.0",
-    "description": "Frozen frontend contract for the INR, market-orders-only Mock Trader MVP."
+    "description": "Frontend contract for INR mock trading with market and limit orders."
   },
   "servers": [
     {
@@ -9565,6 +9565,68 @@
         }
       }
     },
+    "/api/v1/orders/{orderId}/cancel": {
+      "post": {
+        "tags": ["Trading"],
+        "operationId": "cancelOrder",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CancelOrderResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          }
+        }
+      }
+    },
     "/api/v1/market/stats": {
       "get": {
         "tags": ["Market Data"],
@@ -10805,6 +10867,9 @@
           "instrumentId": {
             "type": "string"
           },
+          "product": {
+            "enum": ["delivery", "intraday"]
+          },
           "quantity": {
             "$ref": "#/components/schemas/Decimal"
           },
@@ -10867,13 +10932,68 @@
             "enum": ["buy", "sell"]
           },
           "type": {
-            "const": "market"
+            "enum": ["market", "limit"]
           },
           "status": {
-            "enum": ["queued", "filled", "canceled", "rejected"]
+            "enum": [
+              "queued",
+              "accepted",
+              "partially_filled",
+              "filled",
+              "canceled",
+              "rejected",
+              "expired"
+            ]
           },
           "timeInForce": {
-            "const": "day"
+            "enum": ["day", "gtc", "ioc"]
+          },
+          "product": {
+            "enum": ["delivery", "intraday"]
+          },
+          "source": {
+            "type": "string",
+            "description": "api for user orders; auto_square_off for intraday square-offs."
+          },
+          "limitPrice": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Decimal"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stopPrice": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Decimal"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expiresAt": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "rejectedReason": {
+            "type": ["string", "null"]
+          },
+          "canceledReason": {
+            "type": ["string", "null"]
+          },
+          "notionalEstimate": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Decimal"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "quantity": {
             "$ref": "#/components/schemas/Decimal"
@@ -10922,15 +11042,26 @@
             "enum": ["buy", "sell"]
           },
           "type": {
-            "const": "market"
+            "enum": ["market", "limit"]
           },
           "quantity": {
             "type": "number",
             "exclusiveMinimum": 0
           },
+          "limitPrice": {
+            "type": ["number", "null"],
+            "exclusiveMinimum": 0,
+            "description": "Required for limit orders; must align with the instrument tick size."
+          },
           "timeInForce": {
-            "const": "day",
-            "default": "day"
+            "enum": ["day", "gtc", "ioc"],
+            "default": "day",
+            "description": "Intraday orders accept day or ioc only."
+          },
+          "product": {
+            "enum": ["delivery", "intraday"],
+            "description": "delivery holds on full cash; intraday trades on 5x margin and is squared off at 15:20 IST.",
+            "default": "delivery"
           },
           "clientOrderId": {
             "type": "string",
@@ -10958,19 +11089,33 @@
             "$ref": "#/components/schemas/Order"
           },
           "trade": {
-            "$ref": "#/components/schemas/Trade"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Trade"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "account": {
             "$ref": "#/components/schemas/PublicAccount"
           },
           "position": {
-            "$ref": "#/components/schemas/Position"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Position"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "realizedPnl": {
             "type": "number"
           },
           "filled": {
-            "const": true
+            "type": "boolean"
           },
           "replayed": {
             "type": "boolean"
@@ -10986,6 +11131,18 @@
             "items": {
               "$ref": "#/components/schemas/Position"
             }
+          }
+        }
+      },
+      "CancelOrderResponse": {
+        "type": "object",
+        "required": ["order", "releasedReservations"],
+        "properties": {
+          "order": {
+            "$ref": "#/components/schemas/Order"
+          },
+          "releasedReservations": {
+            "type": "integer"
           }
         }
       },

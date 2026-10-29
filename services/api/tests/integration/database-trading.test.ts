@@ -236,40 +236,47 @@ databaseTest(
       ),
     );
     // Sells are serialized on the account row: the first closes 4,000 of the
-    // 6,001 held, the second closes the remaining 2,001 and shorts 1,999.
+    // 6,001 held; the second would short 1,999 on delivery, which is refused.
     expect(
       concurrentSells.filter((result) => result.status === "fulfilled"),
-    ).toHaveLength(2);
-    const [shortAccount] = await db
+    ).toHaveLength(1);
+    const rejectedSell = concurrentSells.find(
+      (result) => result.status === "rejected",
+    );
+    if (rejectedSell?.status === "rejected") {
+      expect((rejectedSell.reason as HttpError).error).toBe(
+        "SHORT_SELL_INTRADAY_ONLY",
+      );
+    }
+    const [soldAccount] = await db
       .select()
       .from(tradingAccounts)
       .where(eq(tradingAccounts.id, firstProvision.account.id));
-    expect(Number(shortAccount?.mockCashBalance)).toBe(1_199_910);
-    // Short proceeds are held as collateral plus the same again as margin.
-    expect(Number(shortAccount?.mockBuyingPower)).toBe(800_110);
+    expect(Number(soldAccount?.mockCashBalance)).toBe(799_910);
+    expect(Number(soldAccount?.mockBuyingPower)).toBe(799_910);
 
     quote.quote.receivedAt = new Date().toISOString();
     quote.quote.lastTradeTime = quote.quote.receivedAt;
     quote.quote.lastPrice = 90;
-    const covered = (await service.placeOrder(
+    const closed = (await service.placeOrder(
       userId,
       firstProvision.account.id,
       {
         instrumentId: "RELIANCE",
-        side: "buy",
+        side: "sell",
         type: "market",
-        quantity: 1_999,
-        idempotencyKey: "cover-short",
+        quantity: 2_001,
+        idempotencyKey: "close-long",
       },
       { requestId: runId },
     )) as { realizedPnl: number; position: { quantity: string } };
-    expect(covered.realizedPnl).toBe(19_990);
-    expect(Number(covered.position.quantity)).toBe(0);
+    expect(closed.realizedPnl).toBe(-20_010);
+    expect(Number(closed.position.quantity)).toBe(0);
     const [flatAccount] = await db
       .select()
       .from(tradingAccounts)
       .where(eq(tradingAccounts.id, firstProvision.account.id));
-    expect(Number(flatAccount?.mockCashBalance)).toBe(1_020_000);
-    expect(Number(flatAccount?.mockBuyingPower)).toBe(1_020_000);
+    expect(Number(flatAccount?.mockCashBalance)).toBe(980_000);
+    expect(Number(flatAccount?.mockBuyingPower)).toBe(980_000);
   },
 );

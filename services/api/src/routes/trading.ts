@@ -373,11 +373,11 @@ function normalizeCreateOrderBody(
   request: Request,
 ): CreateOrderInput {
   const input = objectBody(body);
-  const type = enumValue(input.type, ["market"], "type");
+  const type = enumValue(input.type, MVP_PRODUCT.orderTypes, "type");
   const timeInForce =
     input.timeInForce === undefined || input.timeInForce === null
       ? "day"
-      : enumValue(input.timeInForce, ["day"], "timeInForce");
+      : enumValue(input.timeInForce, MVP_PRODUCT.timeInForce, "timeInForce");
   const idempotencyKey =
     optionalString(input.idempotencyKey) ??
     optionalString(request.headers.get("idempotency-key"));
@@ -403,6 +403,10 @@ function normalizeCreateOrderBody(
         ? null
         : numberValue(input.stopPrice, "stopPrice"),
     timeInForce,
+    product:
+      input.product === undefined || input.product === null
+        ? "delivery"
+        : enumValue(input.product, MVP_PRODUCT.products, "product"),
     clientOrderId: optionalString(input.clientOrderId),
     idempotencyKey,
     metadata: objectOrNull(input.metadata),

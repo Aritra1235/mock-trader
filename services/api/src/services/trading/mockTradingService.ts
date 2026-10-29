@@ -1,5 +1,5 @@
 import { Buffer } from "node:buffer";
-import { and, desc, eq, inArray, lt, or } from "drizzle-orm";
+import { and, desc, eq, inArray, lt, ne, or } from "drizzle-orm";
 import { MVP_PRODUCT } from "../../config/product";
 import { type Database, db } from "../../db";
 import {
@@ -22,9 +22,19 @@ import {
   tradingAccounts,
   user,
 } from "../../db/schemas/schema";
+import { log } from "../../lib/log";
 import type { InstrumentRecord, QuoteEnvelope } from "../../types/market";
 import type { CatalogService } from "../catalogService";
 import type { MarketDataService } from "../marketDataService";
+import {
+  dayOrderExpiry,
+  INTRADAY_MARGIN_RATE,
+  intradayOrderExpiry,
+  isIntradayEntryOpen,
+  isIntradaySquareOffDue,
+  isOrderSessionOpen,
+  limitPriceMatches,
+} from "./orderPolicy";
 
 type OrderSide = "buy" | "sell";
 
@@ -32,8 +42,11 @@ type OrderSide = "buy" | "sell";
  * A short sale credits its proceeds to cash, but buying power drops by the
  * sale value: the proceeds stay as collateral and the same amount again is
  * held as margin (2x the entry value in total). Covering releases it.
+ * Only legacy delivery shorts use this; new shorts must be intraday.
  */
 const SHORT_HOLD_FACTOR = 2;
+type OrderProduct = "delivery" | "intraday";
+const AUTO_SQUARE_OFF_SOURCE = "auto_square_off";
 type OrderType = "market" | "limit" | "stop" | "stop_limit";
 type TimeInForce = "day" | "gtc" | "ioc" | "fok";
 
@@ -58,6 +71,7 @@ export interface CreateOrderInput {
   limitPrice?: number | null;
   stopPrice?: number | null;
   timeInForce?: TimeInForce;
+  product?: OrderProduct;
   clientOrderId?: string | null;
   idempotencyKey?: string | null;
   metadata?: Record<string, unknown> | null;
@@ -164,6 +178,8 @@ export class DrizzleMockTradingService implements MockTradingService {
     private readonly catalog: CatalogService,
     private readonly marketData: MarketDataService,
     private readonly database: TradingDb = db,
+    private readonly now: () => Date = () => new Date(),
+    private readonly quoteStaleMs = 15_000,
   ) {}
 
   async getMe(userId: string) {
@@ -528,9 +544,24 @@ export class DrizzleMockTradingService implements MockTradingService {
 
     const instrument = await this.ensureInstrument(input.instrumentId);
     assertInstrumentRules(instrument, input);
-    const quoteEnvelope = await this.readQuote(instrument.instrumentKey);
-    const quotePrice = quoteEnvelope.quote?.lastPrice ?? null;
-    if (quoteEnvelope.stale) {
+    let quoteEnvelope: QuoteEnvelope | null = null;
+    try {
+      quoteEnvelope = await this.readQuote(instrument.instrumentKey);
+    } catch (error) {
+      // A resting limit order needs a limit price, not a working quote feed.
+      if (input.type === "market") throw error;
+      log.debug("limit order accepted without quote", {
+        instrumentId: input.instrumentId,
+      });
+    }
+    const rawQuotePrice = quoteEnvelope?.quote?.lastPrice;
+    const quotePrice =
+      rawQuotePrice != null &&
+      Number.isFinite(rawQuotePrice) &&
+      rawQuotePrice > 0
+        ? rawQuotePrice
+        : null;
+    if (input.type === "market" && quoteEnvelope?.stale) {
       throw new HttpError(
         409,
         "STALE_QUOTE",
@@ -538,8 +569,9 @@ export class DrizzleMockTradingService implements MockTradingService {
       );
     }
     if (
-      quoteEnvelope.quote?.found !== true ||
-      quoteEnvelope.quote.tradable !== true
+      input.type === "market" &&
+      (quoteEnvelope?.quote?.found !== true ||
+        quoteEnvelope.quote.tradable !== true)
     ) {
       throw new HttpError(
         422,
@@ -548,18 +580,25 @@ export class DrizzleMockTradingService implements MockTradingService {
       );
     }
     if (
-      quotePrice === null ||
-      !Number.isFinite(quotePrice) ||
-      quotePrice <= 0
+      input.type === "market" &&
+      (quotePrice === null || !Number.isFinite(quotePrice) || quotePrice <= 0)
     ) {
       throw new HttpError(422, "QUOTE_UNAVAILABLE", "No usable latest quote.");
     }
-    assertPriceBand(
-      instrument,
-      quotePrice,
-      quoteEnvelope.quote.ohlc?.close ?? null,
-    );
-    const referencePrice = quotePrice;
+    const limitPrice = input.limitPrice ?? 0;
+    const referencePrice =
+      input.type === "limit"
+        ? input.side === "buy"
+          ? limitPrice
+          : Math.max(limitPrice, quotePrice ?? 0)
+        : (quotePrice ?? 0);
+    if (input.type === "market") {
+      assertPriceBand(
+        instrument,
+        referencePrice,
+        quoteEnvelope?.quote?.ohlc?.close ?? null,
+      );
+    }
 
     return this.database.transaction(async (tx) => {
       const account = await this.requireOwnedAccountForUpdate(
@@ -589,10 +628,23 @@ export class DrizzleMockTradingService implements MockTradingService {
         return this.replayOrder(tx, concurrentOrder, requestFingerprint);
       }
 
+      const product = input.product ?? "delivery";
+      const opening = openingQuantity(
+        await this.readPosition(
+          tx,
+          accountId,
+          instrument.instrumentKey,
+          product,
+        ),
+        input.side,
+        input.quantity,
+      );
+      assertProductRules(product, input.side, opening, this.now());
+
       const orderId = randomId();
       const clientOrderId = input.clientOrderId?.trim() || orderId;
       const notional = input.quantity * referencePrice;
-      const now = new Date();
+      const now = this.now();
 
       const [createdOrder] = await tx
         .insert(orders)
@@ -606,11 +658,20 @@ export class DrizzleMockTradingService implements MockTradingService {
           idempotencyKey,
           side: input.side,
           type: input.type,
-          status: "queued",
-          timeInForce: "day",
+          status: input.type === "limit" ? "accepted" : "queued",
+          timeInForce: input.timeInForce ?? "day",
+          product,
           quantity: money(input.quantity),
-          limitPrice: null,
+          limitPrice: input.type === "limit" ? money(limitPrice) : null,
           stopPrice: null,
+          expiresAt:
+            input.type !== "limit"
+              ? null
+              : product === "intraday"
+                ? intradayOrderExpiry(now)
+                : (input.timeInForce ?? "day") === "day"
+                  ? dayOrderExpiry(now)
+                  : null,
           notionalEstimate: money(notional),
           requestIpAddress: context.ipAddress ?? null,
           requestUserAgent: context.userAgent ?? null,
@@ -629,21 +690,434 @@ export class DrizzleMockTradingService implements MockTradingService {
         fromStatus: "draft",
         toStatus: createdOrder.status,
         actorUserId: userId,
-        message: "Market order accepted for immediate mock execution.",
+        message: `${input.type === "market" ? "Market" : "Limit"} order accepted.`,
         context,
       });
 
-      const result = await this.executeMarketOrder(tx, {
+      const executableEnvelope = this.hasExecutableQuote(quoteEnvelope)
+        ? quoteEnvelope
+        : null;
+      const canFill =
+        executableEnvelope &&
+        (input.type === "market" ||
+          (isOrderSessionOpen(this.now()) &&
+            limitPriceMatches(
+              input.side,
+              limitPrice,
+              executableEnvelope.quote.lastPrice,
+            )));
+      if (canFill && executableEnvelope) {
+        assertPriceBand(
+          instrument,
+          executableEnvelope.quote.lastPrice,
+          executableEnvelope.quote.ohlc?.close ?? null,
+        );
+        const result = await this.executeOrder(tx, {
+          account,
+          order: createdOrder,
+          input,
+          instrument,
+          quoteEnvelope: executableEnvelope,
+          referencePrice: executableEnvelope.quote.lastPrice,
+          context,
+        });
+        return publicExecutionResult(result, false);
+      }
+      if (input.type === "market") {
+        throw new HttpError(
+          409,
+          "STALE_QUOTE",
+          "A fresh live quote is required to execute this order.",
+        );
+      }
+      if (input.timeInForce === "ioc") {
+        const canceled = await this.finishOpenOrder(
+          tx,
+          createdOrder,
+          "canceled",
+          "IOC order could not fill immediately at the limit price.",
+          context,
+        );
+        return this.publicUnfilledResult(tx, canceled);
+      }
+      await this.reserveForOpenOrder(tx, {
         account,
         order: createdOrder,
         input,
         instrument,
-        quoteEnvelope,
         referencePrice,
-        context,
       });
-      return publicExecutionResult(result, false);
+      return this.publicUnfilledResult(tx, createdOrder);
     });
+  }
+
+  private hasExecutableQuote(
+    envelope: QuoteEnvelope | null,
+  ): envelope is QuoteEnvelope & {
+    quote: NonNullable<QuoteEnvelope["quote"]> & { lastPrice: number };
+  } {
+    const quote = envelope?.quote;
+    if (!quote || envelope?.stale || !quote.found || quote.tradable !== true)
+      return false;
+    const age = this.now().getTime() - Date.parse(quote.receivedAt);
+    return (
+      Number.isFinite(age) &&
+      age >= -5_000 &&
+      age <= this.quoteStaleMs &&
+      quote.lastPrice !== null &&
+      Number.isFinite(quote.lastPrice) &&
+      quote.lastPrice > 0
+    );
+  }
+
+  private async publicUnfilledResult(
+    database: TradingDb | Tx,
+    order: typeof orders.$inferSelect,
+    replayed = false,
+  ) {
+    const [account] = await database
+      .select()
+      .from(tradingAccounts)
+      .where(eq(tradingAccounts.id, order.accountId))
+      .limit(1);
+    return {
+      order: publicOrder(order),
+      account: publicAccount(account),
+      trade: null,
+      position: null,
+      filled: false as const,
+      replayed,
+    };
+  }
+
+  private async releaseOrderReservations(
+    tx: Tx,
+    orderId: string,
+    reason: string,
+  ) {
+    const reservations = await tx
+      .select()
+      .from(orderReservations)
+      .where(
+        and(
+          eq(orderReservations.orderId, orderId),
+          eq(orderReservations.status, "active"),
+        ),
+      );
+    for (const reservation of reservations)
+      await this.releaseReservation(tx, reservation, reason);
+    return reservations.length;
+  }
+
+  private async finishOpenOrder(
+    tx: Tx,
+    order: typeof orders.$inferSelect,
+    status: "canceled" | "expired" | "rejected",
+    reason: string,
+    context: RequestContext = {},
+  ) {
+    await this.releaseOrderReservations(tx, order.id, reason);
+    const [updated] = await tx
+      .update(orders)
+      .set({
+        status,
+        canceledReason:
+          status === "canceled" || status === "expired" ? reason : null,
+        rejectedReason: status === "rejected" ? reason : null,
+        updatedAt: this.now(),
+      })
+      .where(eq(orders.id, order.id))
+      .returning();
+    await this.writeOrderEvent(tx, {
+      orderId: order.id,
+      eventType: status,
+      fromStatus: order.status,
+      toStatus: status,
+      message: reason,
+      context,
+    });
+    return updated;
+  }
+
+  /** Runs in the API runtime, independently of browser subscriptions. */
+  async processOpenOrders() {
+    const candidates = await this.database
+      .select()
+      .from(orders)
+      .where(
+        and(
+          eq(orders.type, "limit"),
+          inArray(orders.status, ["queued", "accepted"]),
+        ),
+      )
+      .orderBy(orders.createdAt, orders.id);
+    for (const candidate of candidates) {
+      try {
+        // Expiry must work even when the market-data provider is unavailable.
+        let envelope: QuoteEnvelope | null = null;
+        if (
+          (!candidate.expiresAt || candidate.expiresAt > this.now()) &&
+          isOrderSessionOpen(this.now())
+        ) {
+          try {
+            envelope = await this.readQuote(candidate.instrumentId);
+          } catch {
+            /* Retry next pass. */
+          }
+        }
+        await this.database.transaction(async (tx) => {
+          const account = await this.requireOwnedAccountForUpdate(
+            candidate.userId,
+            candidate.accountId,
+            tx,
+          );
+          const [order] = await tx
+            .select()
+            .from(orders)
+            .where(eq(orders.id, candidate.id))
+            .limit(1);
+          // All place/cancel/match mutations use the same account lock.
+          if (!order || !["queued", "accepted"].includes(order.status)) return;
+          if (order.expiresAt && order.expiresAt <= this.now()) {
+            await this.finishOpenOrder(
+              tx,
+              order,
+              "expired",
+              order.product === "intraday"
+                ? "Intraday order expired at the square-off time."
+                : "Day order expired at the end of its trading session.",
+            );
+            return;
+          }
+          const [profile] = await tx
+            .select()
+            .from(user)
+            .where(eq(user.id, order.userId))
+            .limit(1);
+          if (
+            account.status !== "active" ||
+            !profile ||
+            profile.banned ||
+            profile.trading_status !== "active"
+          ) {
+            await this.finishOpenOrder(
+              tx,
+              order,
+              "rejected",
+              "Trading is no longer active for this account.",
+            );
+            return;
+          }
+          const fillEnvelope = envelope;
+          if (
+            !isOrderSessionOpen(this.now()) ||
+            !this.hasExecutableQuote(fillEnvelope) ||
+            !limitPriceMatches(
+              order.side,
+              num(order.limitPrice),
+              fillEnvelope.quote.lastPrice,
+            )
+          )
+            return;
+          const instrument = this.catalog.resolve(order.instrumentId);
+          if (!instrument) {
+            await this.finishOpenOrder(
+              tx,
+              order,
+              "rejected",
+              "Instrument is no longer available.",
+            );
+            return;
+          }
+          const input: CreateOrderInput = {
+            instrumentId: order.instrumentId,
+            side: order.side,
+            type: "limit",
+            quantity: num(order.quantity),
+            limitPrice: num(order.limitPrice),
+            timeInForce: order.timeInForce,
+            product: order.product,
+          };
+          try {
+            // A risk failure rolls back the release and any fill writes before
+            // rejecting the order and returning its reservations exactly once.
+            await tx.transaction(async (fillTx) => {
+              assertInstrumentRules(instrument, input);
+              assertPriceBand(
+                instrument,
+                fillEnvelope.quote.lastPrice,
+                fillEnvelope.quote.ohlc?.close ?? null,
+              );
+              await this.releaseOrderReservations(fillTx, order.id, "filled");
+              const releasedAccount = await this.requireOwnedAccountForUpdate(
+                order.userId,
+                order.accountId,
+                fillTx,
+              );
+              await this.executeOrder(fillTx, {
+                account: releasedAccount,
+                order,
+                input,
+                instrument,
+                quoteEnvelope: fillEnvelope,
+                referencePrice: fillEnvelope.quote.lastPrice,
+                context: {},
+              });
+            });
+          } catch (error) {
+            if (!(error instanceof HttpError) || error.status >= 500)
+              throw error;
+            await this.finishOpenOrder(tx, order, "rejected", error.message);
+          }
+        });
+      } catch (error) {
+        log.error("open order processing failed", {
+          orderId: candidate.id,
+          error,
+        });
+      }
+    }
+  }
+
+  /**
+   * Closes every intraday position that is due (see isIntradaySquareOffDue) at
+   * the latest known price, after canceling its resting intraday orders. Uses
+   * the last price even if stale: an intraday position must not carry over.
+   */
+  async squareOffIntradayPositions() {
+    const now = this.now();
+    const open = await this.database
+      .select({ position: positions, userId: tradingAccounts.userId })
+      .from(positions)
+      .innerJoin(tradingAccounts, eq(tradingAccounts.id, positions.accountId))
+      .where(
+        and(eq(positions.product, "intraday"), ne(positions.quantity, "0")),
+      );
+    for (const { position: candidate, userId } of open) {
+      if (!isIntradaySquareOffDue(now, candidate.updatedAt)) continue;
+      try {
+        let envelope: QuoteEnvelope | null = null;
+        try {
+          envelope = await this.readQuote(candidate.instrumentId);
+        } catch {
+          /* Retry next pass. */
+        }
+        const price = envelope?.quote?.lastPrice;
+        const instrument = this.catalog.resolve(candidate.instrumentId);
+        if (
+          !envelope?.quote ||
+          price == null ||
+          !Number.isFinite(price) ||
+          price <= 0 ||
+          !instrument
+        ) {
+          log.warn("intraday square-off waiting for a price", {
+            positionId: candidate.id,
+            instrumentId: candidate.instrumentId,
+          });
+          continue;
+        }
+        const quoteEnvelope = envelope;
+        await this.database.transaction(async (tx) => {
+          await this.requireOwnedAccountForUpdate(
+            userId,
+            candidate.accountId,
+            tx,
+          );
+          const resting = await tx
+            .select()
+            .from(orders)
+            .where(
+              and(
+                eq(orders.accountId, candidate.accountId),
+                eq(orders.instrumentId, candidate.instrumentId),
+                eq(orders.product, "intraday"),
+                inArray(orders.status, ["queued", "accepted"]),
+              ),
+            );
+          for (const order of resting) {
+            await this.finishOpenOrder(
+              tx,
+              order,
+              "canceled",
+              "Canceled for the intraday auto square-off.",
+            );
+          }
+          const account = await this.requireOwnedAccountForUpdate(
+            userId,
+            candidate.accountId,
+            tx,
+          );
+          const position = await this.readPosition(
+            tx,
+            candidate.accountId,
+            candidate.instrumentId,
+            "intraday",
+          );
+          const quantity = num(position?.quantity);
+          if (!position || quantity === 0) return;
+
+          const side: OrderSide = quantity > 0 ? "sell" : "buy";
+          const input: CreateOrderInput = {
+            instrumentId: candidate.instrumentId,
+            side,
+            type: "market",
+            quantity: Math.abs(quantity),
+            timeInForce: "day",
+            product: "intraday",
+          };
+          const orderId = randomId();
+          const [order] = await tx
+            .insert(orders)
+            .values({
+              id: orderId,
+              accountId: account.id,
+              userId,
+              instrumentId: candidate.instrumentId,
+              clientOrderId: orderId,
+              idempotencyKey: `${AUTO_SQUARE_OFF_SOURCE}:${orderId}`,
+              side,
+              type: "market",
+              status: "queued",
+              timeInForce: "day",
+              product: "intraday",
+              quantity: money(input.quantity),
+              notionalEstimate: money(input.quantity * price),
+              source: AUTO_SQUARE_OFF_SOURCE,
+              placedAt: now,
+              metadata: { autoSquareOff: true, positionId: position.id },
+            })
+            .returning();
+          await this.writeOrderEvent(tx, {
+            orderId,
+            eventType: "accepted",
+            fromStatus: "draft",
+            toStatus: "queued",
+            message: `Intraday auto square-off at ${MVP_PRODUCT.intraday.squareOffAt} IST.`,
+            context: {},
+          });
+          await this.executeOrder(tx, {
+            account,
+            order,
+            input,
+            instrument,
+            quoteEnvelope,
+            referencePrice: price,
+            context: {},
+          });
+        });
+        log.info("intraday position squared off", {
+          positionId: candidate.id,
+          instrumentId: candidate.instrumentId,
+          price,
+        });
+      } catch (error) {
+        log.error("intraday square-off failed", {
+          positionId: candidate.id,
+          error,
+        });
+      }
+    }
   }
 
   private async replayOrder(
@@ -658,6 +1132,10 @@ export class DrizzleMockTradingService implements MockTradingService {
         "IDEMPOTENCY_KEY_REUSED",
         "This idempotency key was already used for a different order.",
       );
+    }
+
+    if (order.status !== "filled") {
+      return this.publicUnfilledResult(database, order, true);
     }
 
     const [[trade], [account], [position]] = await Promise.all([
@@ -678,6 +1156,7 @@ export class DrizzleMockTradingService implements MockTradingService {
           and(
             eq(positions.accountId, order.accountId),
             eq(positions.instrumentId, order.instrumentId),
+            eq(positions.product, order.product),
           ),
         )
         .limit(1),
@@ -1096,7 +1575,7 @@ export class DrizzleMockTradingService implements MockTradingService {
     return envelope;
   }
 
-  private async executeMarketOrder(
+  private async executeOrder(
     tx: Tx,
     args: {
       account: typeof tradingAccounts.$inferSelect;
@@ -1146,22 +1625,16 @@ export class DrizzleMockTradingService implements MockTradingService {
     quoteId: string | null,
     observedAt: Date | null,
   ) {
+    const product = args.order.product;
     const current = await this.readPosition(
       tx,
       args.account.id,
       args.instrument.instrumentKey,
+      product,
     );
     const shortQty = Math.max(0, -num(current?.quantity));
     const coverQty = Math.min(args.input.quantity, shortQty);
     const longQty = args.input.quantity - coverQty;
-    const released = SHORT_HOLD_FACTOR * coverQty * num(current?.averageCost);
-    if (num(args.account.mockBuyingPower) + released < net) {
-      throw new HttpError(
-        409,
-        "INSUFFICIENT_MOCK_CASH",
-        "Mock buying power is insufficient.",
-      );
-    }
 
     const newCash = num(args.account.mockCashBalance) - net;
     const tradeId = randomId();
@@ -1183,7 +1656,7 @@ export class DrizzleMockTradingService implements MockTradingService {
         netAmount: money(net),
         marketQuoteId: quoteId,
         quoteObservedAt: observedAt,
-        executionReason: "market_order_immediate_fill",
+        executionReason: executionReason(args.order),
         executionVenue: "mock_internal",
         executedAt: now,
         metadata: { mock: true },
@@ -1191,11 +1664,10 @@ export class DrizzleMockTradingService implements MockTradingService {
       .returning();
 
     const realizedPnl =
-      coverQty > 0
+      coverQty > 0 && current
         ? await this.consumeLots(
             tx,
-            args.account.id,
-            args.instrument.instrumentKey,
+            current.id,
             coverQty,
             args.referencePrice,
             tradeId,
@@ -1207,8 +1679,8 @@ export class DrizzleMockTradingService implements MockTradingService {
     const position = await this.upsertBoughtPosition(
       tx,
       args.account.id,
-      args.account.userId,
       args.instrument.instrumentKey,
+      product,
       args.input.quantity,
       args.referencePrice,
       realizedPnl,
@@ -1228,7 +1700,11 @@ export class DrizzleMockTradingService implements MockTradingService {
         costBasisPrice: money(args.referencePrice),
         costBasisAmount: money(longQty * args.referencePrice),
         openedAt: now,
-        metadata: { source: "market_order", direction: "long" },
+        metadata: {
+          source: `${args.order.type}_order`,
+          direction: "long",
+          product,
+        },
       });
     }
     let finalTrade = trade;
@@ -1250,19 +1726,29 @@ export class DrizzleMockTradingService implements MockTradingService {
       idempotencyKey: `${args.order.id}:cash:buy`,
       description:
         coverQty > 0
-          ? "Mock market buy fill (short cover)."
-          : "Mock market buy fill.",
+          ? `Mock ${args.order.type} buy fill (short cover).`
+          : `Mock ${args.order.type} buy fill.`,
     });
 
+    const buyingPower =
+      newCash -
+      num(args.account.reservedMockCash) -
+      (await this.positionsHold(tx, args.account.id));
+    // Closing trades always go through; new exposure must fit buying power.
+    if (longQty > 0 && buyingPower < 0) {
+      throw new HttpError(
+        409,
+        "INSUFFICIENT_MOCK_CASH",
+        product === "intraday"
+          ? "Not enough buying power for the intraday margin."
+          : "Mock buying power is insufficient.",
+      );
+    }
     const [account] = await tx
       .update(tradingAccounts)
       .set({
         mockCashBalance: money(newCash),
-        mockBuyingPower: money(
-          newCash -
-            num(args.account.reservedMockCash) -
-            (await this.shortHold(tx, args.account.id)),
-        ),
+        mockBuyingPower: money(buyingPower),
         updatedAt: now,
       })
       .where(eq(tradingAccounts.id, args.account.id))
@@ -1285,7 +1771,7 @@ export class DrizzleMockTradingService implements MockTradingService {
       fromStatus: args.order.status,
       toStatus: "filled",
       actorUserId: args.account.userId,
-      message: "Market buy filled from latest quote.",
+      message: `${args.order.type === "limit" ? "Limit" : "Market"} buy filled from latest quote.`,
       context: args.context,
     });
 
@@ -1315,10 +1801,12 @@ export class DrizzleMockTradingService implements MockTradingService {
     quoteId: string | null,
     observedAt: Date | null,
   ) {
+    const product = args.order.product;
     const position = await this.readPosition(
       tx,
       args.account.id,
       args.instrument.instrumentKey,
+      product,
     );
     const currentQty = num(position?.quantity);
     const longQty = Math.max(0, currentQty);
@@ -1333,17 +1821,11 @@ export class DrizzleMockTradingService implements MockTradingService {
         "Shares are reserved by open sell orders. Cancel them first.",
       );
     }
-    // Opening a short costs buying power equal to its value (see SHORT_HOLD_FACTOR).
-    const buyingPowerAfterClose =
-      num(args.account.mockBuyingPower) + closeQty * args.referencePrice;
-    if (
-      shortQty > 0 &&
-      buyingPowerAfterClose < shortQty * args.referencePrice
-    ) {
+    if (shortQty > 0 && product !== "intraday") {
       throw new HttpError(
         409,
-        "INSUFFICIENT_MOCK_CASH",
-        "Not enough buying power to cover the margin for this short sale.",
+        "SHORT_SELL_INTRADAY_ONLY",
+        "Short selling is only allowed as an intraday order.",
       );
     }
 
@@ -1365,7 +1847,7 @@ export class DrizzleMockTradingService implements MockTradingService {
         netAmount: money(net),
         marketQuoteId: quoteId,
         quoteObservedAt: observedAt,
-        executionReason: "market_order_immediate_fill",
+        executionReason: executionReason(args.order),
         executionVenue: "mock_internal",
         executedAt: now,
         metadata: { mock: true },
@@ -1373,11 +1855,10 @@ export class DrizzleMockTradingService implements MockTradingService {
       .returning();
 
     const realizedPnl =
-      closeQty > 0
+      closeQty > 0 && position
         ? await this.consumeLots(
             tx,
-            args.account.id,
-            args.instrument.instrumentKey,
+            position.id,
             closeQty,
             args.referencePrice,
             tradeId,
@@ -1432,6 +1913,7 @@ export class DrizzleMockTradingService implements MockTradingService {
             id: randomId(),
             accountId: args.account.id,
             instrumentId: args.instrument.instrumentKey,
+            product,
             openedAt: now,
             ...values,
           })
@@ -1451,7 +1933,11 @@ export class DrizzleMockTradingService implements MockTradingService {
         costBasisPrice: money(args.referencePrice),
         costBasisAmount: money(shortQty * args.referencePrice),
         openedAt: now,
-        metadata: { source: "market_order", direction: "short" },
+        metadata: {
+          source: `${args.order.type}_order`,
+          direction: "short",
+          product,
+        },
       });
     }
 
@@ -1466,19 +1952,29 @@ export class DrizzleMockTradingService implements MockTradingService {
       idempotencyKey: `${args.order.id}:cash:sell`,
       description:
         shortQty > 0
-          ? "Mock market sell fill (short sale)."
-          : "Mock market sell fill.",
+          ? `Mock ${args.order.type} sell fill (short sale).`
+          : `Mock ${args.order.type} sell fill.`,
     });
 
+    const buyingPower =
+      newCash -
+      num(args.account.reservedMockCash) -
+      (await this.positionsHold(tx, args.account.id));
+    // Closing trades always go through; new exposure must fit buying power.
+    if (shortQty > 0 && buyingPower < 0) {
+      throw new HttpError(
+        409,
+        "INSUFFICIENT_MOCK_CASH",
+        product === "intraday"
+          ? "Not enough buying power for the intraday margin."
+          : "Not enough buying power to cover the margin for this short sale.",
+      );
+    }
     const [account] = await tx
       .update(tradingAccounts)
       .set({
         mockCashBalance: money(newCash),
-        mockBuyingPower: money(
-          newCash -
-            num(args.account.reservedMockCash) -
-            (await this.shortHold(tx, args.account.id)),
-        ),
+        mockBuyingPower: money(buyingPower),
         updatedAt: now,
       })
       .where(eq(tradingAccounts.id, args.account.id))
@@ -1501,7 +1997,7 @@ export class DrizzleMockTradingService implements MockTradingService {
       fromStatus: args.order.status,
       toStatus: "filled",
       actorUserId: args.account.userId,
-      message: "Market sell filled from latest quote.",
+      message: `${args.order.type === "limit" ? "Limit" : "Market"} sell filled from latest quote.`,
       context: args.context,
     });
 
@@ -1515,42 +2011,72 @@ export class DrizzleMockTradingService implements MockTradingService {
     };
   }
 
-  async reserveForOpenOrder(
+  private async reserveForOpenOrder(
     tx: Tx,
     args: {
       account: typeof tradingAccounts.$inferSelect;
       order: typeof orders.$inferSelect;
       input: CreateOrderInput;
       instrument: InstrumentRecord;
-      referencePrice: number | null;
+      referencePrice: number;
     },
   ) {
-    if (args.input.side === "buy") {
-      if (args.referencePrice === null) {
-        throw new HttpError(
-          422,
-          "PRICE_REQUIRED",
-          "Limit or stop price is required.",
-        );
-      }
-      const reservedCash = args.input.quantity * args.referencePrice;
-      if (num(args.account.mockBuyingPower) < reservedCash) {
-        throw new HttpError(
-          409,
-          "INSUFFICIENT_MOCK_CASH",
-          "Mock buying power is insufficient.",
-        );
-      }
-      await tx.insert(orderReservations).values({
-        id: randomId(),
-        orderId: args.order.id,
-        accountId: args.account.id,
-        userId: args.account.userId,
-        instrumentId: args.instrument.instrumentKey,
-        reservationType: "mock_cash",
-        reservedMockCash: money(reservedCash),
-        idempotencyKey: `${args.order.id}:reservation:cash`,
-      });
+    const product = args.order.product;
+    const position = await this.readPosition(
+      tx,
+      args.account.id,
+      args.instrument.instrumentKey,
+      product,
+    );
+    const closing =
+      args.input.side === "sell"
+        ? Math.min(args.input.quantity, Math.max(0, num(position?.quantity)))
+        : 0;
+    if (closing > Math.max(0, num(position?.availableQuantity))) {
+      throw new HttpError(
+        409,
+        "INSUFFICIENT_POSITION",
+        "Shares are reserved by open sell orders. Cancel them first.",
+      );
+    }
+    // Resting buys reserve their full limit value. Resting shorts reserve
+    // margin without spending sale proceeds that have not been earned yet.
+    // Intraday orders only reserve the intraday margin on that value.
+    const cashQuantity =
+      args.input.side === "buy"
+        ? args.input.quantity
+        : args.input.quantity - closing;
+    const reservedCash =
+      cashQuantity *
+      args.referencePrice *
+      (product === "intraday" ? INTRADAY_MARGIN_RATE : 1);
+    if (
+      !Number.isFinite(reservedCash) ||
+      num(args.account.mockBuyingPower) < reservedCash
+    ) {
+      throw new HttpError(
+        409,
+        "INSUFFICIENT_MOCK_CASH",
+        "Not enough buying power to reserve this order.",
+      );
+    }
+    await tx.insert(orderReservations).values({
+      id: randomId(),
+      orderId: args.order.id,
+      accountId: args.account.id,
+      userId: args.account.userId,
+      instrumentId: args.instrument.instrumentKey,
+      reservationType:
+        closing > 0 && reservedCash > 0
+          ? "quantity_and_mock_cash"
+          : closing > 0
+            ? "quantity"
+            : "mock_cash",
+      reservedMockCash: money(reservedCash),
+      reservedQuantity: money(closing),
+      idempotencyKey: `${args.order.id}:reservation`,
+    });
+    if (reservedCash > 0) {
       await tx
         .update(tradingAccounts)
         .set({
@@ -1560,49 +2086,19 @@ export class DrizzleMockTradingService implements MockTradingService {
           mockBuyingPower: money(
             num(args.account.mockBuyingPower) - reservedCash,
           ),
-          updatedAt: new Date(),
+          updatedAt: this.now(),
         })
         .where(eq(tradingAccounts.id, args.account.id));
-      return;
     }
-
-    const [position] = await tx
-      .select()
-      .from(positions)
-      .where(
-        and(
-          eq(positions.accountId, args.account.id),
-          eq(positions.instrumentId, args.instrument.instrumentKey),
-        ),
-      )
-      .limit(1);
-    if (!position || num(position.availableQuantity) < args.input.quantity) {
-      throw new HttpError(
-        409,
-        "INSUFFICIENT_POSITION",
-        "Available mock position is insufficient.",
-      );
+    if (closing > 0 && position) {
+      await tx
+        .update(positions)
+        .set({
+          availableQuantity: money(num(position.availableQuantity) - closing),
+          updatedAt: this.now(),
+        })
+        .where(eq(positions.id, position.id));
     }
-
-    await tx.insert(orderReservations).values({
-      id: randomId(),
-      orderId: args.order.id,
-      accountId: args.account.id,
-      userId: args.account.userId,
-      instrumentId: args.instrument.instrumentKey,
-      reservationType: "quantity",
-      reservedQuantity: money(args.input.quantity),
-      idempotencyKey: `${args.order.id}:reservation:quantity`,
-    });
-    await tx
-      .update(positions)
-      .set({
-        availableQuantity: money(
-          num(position.availableQuantity) - args.input.quantity,
-        ),
-        updatedAt: new Date(),
-      })
-      .where(eq(positions.id, position.id));
   }
 
   private async releaseReservation(
@@ -1649,16 +2145,17 @@ export class DrizzleMockTradingService implements MockTradingService {
     }
 
     if (num(reservation.reservedQuantity) > 0) {
-      const [position] = await tx
-        .select()
-        .from(positions)
-        .where(
-          and(
-            eq(positions.accountId, reservation.accountId),
-            eq(positions.instrumentId, reservation.instrumentId),
-          ),
-        )
+      const [order] = await tx
+        .select({ product: orders.product })
+        .from(orders)
+        .where(eq(orders.id, reservation.orderId))
         .limit(1);
+      const position = await this.readPosition(
+        tx,
+        reservation.accountId,
+        reservation.instrumentId,
+        order?.product ?? "delivery",
+      );
       if (position) {
         await tx
           .update(positions)
@@ -1677,13 +2174,18 @@ export class DrizzleMockTradingService implements MockTradingService {
   private async upsertBoughtPosition(
     tx: Tx,
     accountId: string,
-    _userId: string,
     instrumentId: string,
+    product: OrderProduct,
     quantity: number,
     price: number,
     realizedPnl = 0,
   ) {
-    const current = await this.readPosition(tx, accountId, instrumentId);
+    const current = await this.readPosition(
+      tx,
+      accountId,
+      instrumentId,
+      product,
+    );
     const now = new Date();
 
     if (!current) {
@@ -1693,6 +2195,7 @@ export class DrizzleMockTradingService implements MockTradingService {
           id: randomId(),
           accountId,
           instrumentId,
+          product,
           quantity: money(quantity),
           availableQuantity: money(quantity),
           averageCost: money(price),
@@ -1729,7 +2232,12 @@ export class DrizzleMockTradingService implements MockTradingService {
     return updated;
   }
 
-  private async readPosition(tx: Tx, accountId: string, instrumentId: string) {
+  private async readPosition(
+    tx: Tx | TradingDb,
+    accountId: string,
+    instrumentId: string,
+    product: OrderProduct,
+  ) {
     const [position] = await tx
       .select()
       .from(positions)
@@ -1737,34 +2245,40 @@ export class DrizzleMockTradingService implements MockTradingService {
         and(
           eq(positions.accountId, accountId),
           eq(positions.instrumentId, instrumentId),
+          eq(positions.product, product),
         ),
       )
       .limit(1);
     return position;
   }
 
-  /** Buying power held against the account's open short positions. */
-  private async shortHold(tx: Tx, accountId: string) {
-    const shorts = await tx
+  /**
+   * Buying power = cash - reserved cash - this hold. Cash always moves by the
+   * full trade value, so the hold turns that into the margin each position
+   * actually needs (see positionHold).
+   */
+  private async positionsHold(tx: Tx, accountId: string) {
+    const open = await tx
       .select({
+        product: positions.product,
         quantity: positions.quantity,
         averageCost: positions.averageCost,
       })
       .from(positions)
       .where(
-        and(eq(positions.accountId, accountId), lt(positions.quantity, "0")),
+        and(eq(positions.accountId, accountId), ne(positions.quantity, "0")),
       );
-    return shorts.reduce(
+    return open.reduce(
       (total, row) =>
-        total + SHORT_HOLD_FACTOR * -num(row.quantity) * num(row.averageCost),
+        total +
+        positionHold(row.product, num(row.quantity), num(row.averageCost)),
       0,
     );
   }
 
   private async consumeLots(
     tx: Tx,
-    accountId: string,
-    instrumentId: string,
+    positionId: string,
     quantity: number,
     sellPrice: number,
     closingTradeId: string,
@@ -1779,8 +2293,7 @@ export class DrizzleMockTradingService implements MockTradingService {
       .from(positionLots)
       .where(
         and(
-          eq(positionLots.accountId, accountId),
-          eq(positionLots.instrumentId, instrumentId),
+          eq(positionLots.positionId, positionId),
           eq(positionLots.status, "open"),
         ),
       )
@@ -1915,18 +2428,38 @@ function assertOrderInput(input: CreateOrderInput) {
   if (!["buy", "sell"].includes(input.side)) {
     throw new HttpError(400, "INVALID_ORDER", "side must be buy or sell.");
   }
-  if (input.type !== "market") {
+  if (!(MVP_PRODUCT.orderTypes as readonly string[]).includes(input.type)) {
     throw new HttpError(
       400,
       "UNSUPPORTED_ORDER_TYPE",
-      "The MVP supports market orders only.",
+      "Choose a market or limit order.",
     );
   }
-  if (input.timeInForce && input.timeInForce !== "day") {
+  if (
+    input.timeInForce &&
+    !(MVP_PRODUCT.timeInForce as readonly string[]).includes(input.timeInForce)
+  ) {
     throw new HttpError(
       400,
       "UNSUPPORTED_TIME_IN_FORCE",
-      "The MVP supports day time-in-force only.",
+      "Choose Day, GTC, or IOC validity.",
+    );
+  }
+  if (
+    input.product &&
+    !(MVP_PRODUCT.products as readonly string[]).includes(input.product)
+  ) {
+    throw new HttpError(
+      400,
+      "UNSUPPORTED_PRODUCT",
+      "Choose a delivery or intraday order.",
+    );
+  }
+  if (input.product === "intraday" && input.timeInForce === "gtc") {
+    throw new HttpError(
+      400,
+      "UNSUPPORTED_TIME_IN_FORCE",
+      "Intraday orders are valid for the day only; choose Day or IOC.",
     );
   }
   if (!Number.isFinite(input.quantity) || input.quantity <= 0) {
@@ -1936,19 +2469,89 @@ function assertOrderInput(input: CreateOrderInput) {
       "quantity must be greater than zero.",
     );
   }
-  if (input.limitPrice != null || input.stopPrice != null) {
+  if (
+    input.stopPrice != null ||
+    (input.type === "market" && input.limitPrice != null)
+  ) {
     throw new HttpError(
       400,
       "UNSUPPORTED_ORDER_FIELDS",
-      "limitPrice and stopPrice are not accepted for market orders.",
+      "Stop prices are unsupported; limitPrice is only accepted for limit orders.",
     );
   }
+  if (
+    input.type === "limit" &&
+    (input.limitPrice == null ||
+      !Number.isFinite(input.limitPrice) ||
+      input.limitPrice <= 0)
+  ) {
+    throw new HttpError(
+      400,
+      "INVALID_LIMIT_PRICE",
+      "Enter a positive limit price.",
+    );
+  }
+  if (!Number.isFinite(input.quantity * (input.limitPrice ?? 1))) {
+    throw new HttpError(400, "INVALID_ORDER", "Order value is too large.");
+  }
+}
+
+function assertProductRules(
+  product: OrderProduct,
+  side: OrderSide,
+  opening: number,
+  now: Date,
+) {
+  if (product === "delivery" && side === "sell" && opening > 0) {
+    throw new HttpError(
+      409,
+      "SHORT_SELL_INTRADAY_ONLY",
+      "Short selling is only allowed as an intraday order.",
+    );
+  }
+  if (product !== "intraday") return;
+  if (isIntradaySquareOffDue(now, now)) {
+    throw new HttpError(
+      409,
+      "INTRADAY_CLOSED",
+      `Intraday trading runs until ${MVP_PRODUCT.intraday.squareOffAt} IST on weekdays.`,
+    );
+  }
+  if (opening > 0 && !isIntradayEntryOpen(now)) {
+    throw new HttpError(
+      409,
+      "INTRADAY_ENTRY_CLOSED",
+      `New intraday positions close at ${MVP_PRODUCT.intraday.entryCutoff} IST; you can still exit open ones.`,
+    );
+  }
+}
+
+function executionReason(order: typeof orders.$inferSelect) {
+  if (order.source === AUTO_SQUARE_OFF_SOURCE)
+    return "intraday_auto_square_off";
+  return order.type === "limit"
+    ? "limit_order_price_matched"
+    : "market_order_immediate_fill";
 }
 
 function assertInstrumentRules(
   instrument: InstrumentRecord,
   input: CreateOrderInput,
 ) {
+  if (
+    input.limitPrice != null &&
+    instrument.tickSize &&
+    instrument.tickSize > 0
+  ) {
+    const ticks = input.limitPrice / instrument.tickSize;
+    if (Math.abs(ticks - Math.round(ticks)) > 1e-6) {
+      throw new HttpError(
+        400,
+        "INVALID_TICK_SIZE",
+        `Price must be a multiple of ${instrument.tickSize}.`,
+      );
+    }
+  }
   const lotSize = instrument.lotSize ?? 1;
   const lots = input.quantity / lotSize;
   if (Math.abs(lots - Math.round(lots)) > 1e-8) {
@@ -2009,6 +2612,7 @@ function orderRequestFingerprint(input: CreateOrderInput) {
     type: input.type,
     quantity: money(input.quantity),
     timeInForce: input.timeInForce ?? "day",
+    product: input.product ?? "delivery",
     limitPrice: input.limitPrice ?? null,
     stopPrice: input.stopPrice ?? null,
     clientOrderId: input.clientOrderId?.trim() || null,
@@ -2090,6 +2694,11 @@ function publicOrder(order: typeof orders.$inferSelect) {
     type: order.type,
     status: order.status,
     timeInForce: order.timeInForce,
+    product: order.product,
+    source: order.source,
+    limitPrice: order.limitPrice,
+    stopPrice: order.stopPrice,
+    expiresAt: order.expiresAt,
     quantity: order.quantity,
     filledQuantity: order.filledQuantity,
     averageFillPrice: order.averageFillPrice,
@@ -2126,6 +2735,7 @@ function publicPosition(position: typeof positions.$inferSelect) {
     id: position.id,
     accountId: position.accountId,
     instrumentId: position.instrumentId,
+    product: position.product,
     quantity: position.quantity,
     availableQuantity: position.availableQuantity,
     averageCost: position.averageCost,
@@ -2200,6 +2810,40 @@ function publicExecutionResult(result: ExecutionResult, replayed: boolean) {
     filled: true,
     replayed,
   };
+}
+
+/**
+ * Buying power held for one position, on top of the cash its trades moved.
+ * - Delivery long: none; the full cost already left cash.
+ * - Delivery short (legacy): proceeds stay as collateral, plus the same again.
+ * - Intraday long: the full cost left cash, but only the margin is required,
+ *   so the rest is handed back (a negative hold).
+ * - Intraday short: proceeds stay as collateral, plus the margin.
+ */
+export function positionHold(
+  product: OrderProduct,
+  quantity: number,
+  averageCost: number,
+) {
+  const value = Math.abs(quantity) * averageCost;
+  if (product === "intraday") {
+    return quantity < 0
+      ? (1 + INTRADAY_MARGIN_RATE) * value
+      : (INTRADAY_MARGIN_RATE - 1) * value;
+  }
+  return quantity < 0 ? SHORT_HOLD_FACTOR * value : 0;
+}
+
+/** Shares of an order that add exposure rather than close an existing position. */
+function openingQuantity(
+  position: { quantity: string } | undefined,
+  side: OrderSide,
+  quantity: number,
+) {
+  const current = num(position?.quantity);
+  const closable =
+    side === "buy" ? Math.max(0, -current) : Math.max(0, current);
+  return Math.max(0, quantity - closable);
 }
 
 function buildAccountSummary(

@@ -10,6 +10,8 @@ import { RedisSubscriptionLeaseRepository } from "../repositories/subscriptionLe
 import { CatalogService } from "../services/catalogService";
 import { MarketDataService } from "../services/marketDataService";
 import { PaytmSessionService } from "../services/paytmSessionService";
+import { DrizzleMockTradingService } from "../services/trading/mockTradingService";
+import { startOrderProcessor } from "../services/trading/orderProcessor";
 import { MarketGateway } from "../ws/marketGateway";
 
 export async function bootstrapRuntime() {
@@ -79,6 +81,15 @@ export async function bootstrapRuntime() {
   );
   await gateway.start();
 
+  const trading = new DrizzleMockTradingService(
+    catalog,
+    marketData,
+    undefined,
+    undefined,
+    env.market.quoteStaleMs,
+  );
+  const stopOrderProcessor = startOrderProcessor(trading);
+
   setInterval(() => {
     void catalog.syncFromProvider().catch((error) => {
       log.warn("scheduled catalog sync failed", { error });
@@ -95,11 +106,12 @@ export async function bootstrapRuntime() {
       gateway,
       store,
       leases,
+      trading,
       databasePing: async () => {
         await pool.query("select 1");
         return true;
       },
-    }),
+    }).onStop(stopOrderProcessor),
     store,
     leases,
     gateway,

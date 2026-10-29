@@ -266,8 +266,8 @@ test("restricted users cannot place new orders", async () => {
   expect(trading.lastOrderInput).toBeNull();
 });
 
-test("market sell works and conditional orders are rejected for the MVP", async () => {
-  const { app } = await buildTradingTestApp({
+test("market sells and limit orders forward their execution fields and validity", async () => {
+  const { app, trading } = await buildTradingTestApp({
     user: { id: "user-1", role: "user" },
   });
 
@@ -294,8 +294,10 @@ test("market sell works and conditional orders are rejected for the MVP", async 
     }),
   );
   const limit = await limitResponse.json();
-  expect(limitResponse.status).toBe(400);
-  expect(limit.error.code).toBe("INVALID_REQUEST");
+  expect(limitResponse.status).toBe(200);
+  expect(limit.order.status).toBe("accepted");
+  expect(trading.lastOrderInput?.limitPrice).toBe(1400);
+  expect(trading.lastOrderInput?.timeInForce).toBe("gtc");
 
   const cancelResponse = await app.handle(
     jsonRequest("http://localhost/api/v1/orders/order-limit/cancel", {
@@ -305,6 +307,31 @@ test("market sell works and conditional orders are rejected for the MVP", async 
   const cancel = await cancelResponse.json();
   expect(cancel.order.status).toBe("canceled");
   expect(cancel.releasedReservations).toBe(1);
+});
+
+test("unsupported order types and validity are rejected by the route", async () => {
+  const { app, trading } = await buildTradingTestApp({
+    user: { id: "user-1", role: "user" },
+  });
+  for (const fields of [
+    { type: "stop" },
+    { timeInForce: "forever" },
+    { timeInForce: "fok" },
+  ]) {
+    const response = await app.handle(
+      jsonRequest("http://localhost/api/v1/accounts/account-1/orders", {
+        instrumentId: "RELIANCE",
+        side: "buy",
+        type: "limit",
+        quantity: 2,
+        limitPrice: 1400,
+        ...fields,
+      }),
+    );
+    expect(response.status).toBe(400);
+    expect((await response.json()).error.code).toBe("INVALID_REQUEST");
+  }
+  expect(trading.lastOrderInput).toBeNull();
 });
 
 test("deferred competition routes are disabled for the MVP", async () => {

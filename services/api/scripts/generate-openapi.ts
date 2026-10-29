@@ -40,7 +40,7 @@ const document = {
     title: "Mock Trader API",
     version: "2.0.0",
     description:
-      "Frozen frontend contract for the INR, market-orders-only Mock Trader MVP.",
+      "Frontend contract for INR mock trading with market and limit orders.",
   },
   servers: [{ url: process.env.API_PUBLIC_URL ?? "http://localhost:5000" }],
   tags: [
@@ -219,6 +219,28 @@ const document = {
       "listTrades",
       "TradesResponse",
     ),
+    "/api/v1/orders/{orderId}/cancel": {
+      post: {
+        tags: ["Trading"],
+        operationId: "cancelOrder",
+        security,
+        parameters: [pathParameter("orderId")],
+        requestBody: {
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: { reason: { type: "string" } },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": jsonResponse("CancelOrderResponse"),
+          ...errorResponses,
+        },
+      },
+    },
     "/api/v1/market/stats": publicGet("marketStats", "MarketStatsResponse"),
     "/api/v1/market/instruments/search": publicGet(
       "searchInstruments",
@@ -639,6 +661,7 @@ const document = {
           id: { type: "string" },
           accountId: { type: "string" },
           instrumentId: { type: "string" },
+          product: { enum: ["delivery", "intraday"] },
           quantity: ref("Decimal"),
           availableQuantity: ref("Decimal"),
           averageCost: ref("Decimal"),
@@ -667,9 +690,31 @@ const document = {
           clientOrderId: { type: "string" },
           instrumentId: { type: "string" },
           side: { enum: ["buy", "sell"] },
-          type: { const: "market" },
-          status: { enum: ["queued", "filled", "canceled", "rejected"] },
-          timeInForce: { const: "day" },
+          type: { enum: ["market", "limit"] },
+          status: {
+            enum: [
+              "queued",
+              "accepted",
+              "partially_filled",
+              "filled",
+              "canceled",
+              "rejected",
+              "expired",
+            ],
+          },
+          timeInForce: { enum: ["day", "gtc", "ioc"] },
+          product: { enum: ["delivery", "intraday"] },
+          source: {
+            type: "string",
+            description:
+              "api for user orders; auto_square_off for intraday square-offs.",
+          },
+          limitPrice: { oneOf: [ref("Decimal"), { type: "null" }] },
+          stopPrice: { oneOf: [ref("Decimal"), { type: "null" }] },
+          expiresAt: dateTime(true),
+          rejectedReason: { type: ["string", "null"] },
+          canceledReason: { type: ["string", "null"] },
+          notionalEstimate: { oneOf: [ref("Decimal"), { type: "null" }] },
           quantity: ref("Decimal"),
           filledQuantity: ref("Decimal"),
           averageFillPrice: { oneOf: [ref("Decimal"), { type: "null" }] },
@@ -686,9 +731,27 @@ const document = {
         properties: {
           instrumentId: { type: "string", minLength: 1 },
           side: { enum: ["buy", "sell"] },
-          type: { const: "market" },
+          type: { enum: ["market", "limit"] },
           quantity: { type: "number", exclusiveMinimum: 0 },
-          timeInForce: { const: "day", default: "day" },
+          limitPrice: {
+            type: ["number", "null"],
+            exclusiveMinimum: 0,
+            description:
+              "Required for limit orders; must align with the instrument tick size.",
+          },
+          timeInForce: {
+            enum: ["day", "gtc", "ioc"],
+            default: "day",
+            description: "Intraday orders accept day or ioc only.",
+          },
+          product: {
+            ...{
+              enum: ["delivery", "intraday"],
+              description:
+                "delivery holds on full cash; intraday trades on 5x margin and is squared off at 15:20 IST.",
+            },
+            default: "delivery",
+          },
           clientOrderId: { type: "string", minLength: 1, maxLength: 255 },
           metadata: { type: ["object", "null"], additionalProperties: true },
         },
@@ -705,15 +768,23 @@ const document = {
         ],
         properties: {
           order: ref("Order"),
-          trade: ref("Trade"),
+          trade: { oneOf: [ref("Trade"), { type: "null" }] },
           account: ref("PublicAccount"),
-          position: ref("Position"),
+          position: { oneOf: [ref("Position"), { type: "null" }] },
           realizedPnl: { type: "number" },
-          filled: { const: true },
+          filled: { type: "boolean" },
           replayed: { type: "boolean" },
         },
       },
       PositionsResponse: arrayResponse("positions", "Position", false),
+      CancelOrderResponse: {
+        type: "object",
+        required: ["order", "releasedReservations"],
+        properties: {
+          order: ref("Order"),
+          releasedReservations: { type: "integer" },
+        },
+      },
       OrdersResponse: arrayResponse("orders", "Order"),
       TradesResponse: arrayResponse("trades", "Trade"),
       PortfolioResponse: {
