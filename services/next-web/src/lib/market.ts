@@ -110,17 +110,16 @@ export function priceView(
   if (quote?.lastPrice != null) {
     const pct = quote.changePercent;
     const prev = quote.ohlc?.close ?? null;
-    const change =
-      prev !== null && prev > 0
+    const known = prev !== null && prev > 0;
+    return {
+      price: quote.lastPrice,
+      change: known
         ? quote.lastPrice - prev
         : pct !== null
           ? quote.lastPrice - quote.lastPrice / (1 + pct / 100)
-          : null;
-    return {
-      price: quote.lastPrice,
-      change,
-      changePercent:
-        pct ?? (change !== null && prev ? (change / prev) * 100 : null),
+          : null,
+      // The provider's percent on indices is really the absolute change.
+      changePercent: known ? ((quote.lastPrice - prev) / prev) * 100 : pct,
       source: entry?.stale ? "stale" : "live",
     };
   }
