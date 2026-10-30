@@ -301,10 +301,11 @@ export function buildApp(deps: AppDependencies) {
           );
         }
         try {
-          const history = await (deps.history ?? fetchHistoricalCandles)(
-            instrument,
-            range as HistoryRange,
-          );
+          const history = await (
+            deps.history ??
+            ((target, window) =>
+              fetchHistoricalCandles(target, window, deps.marketData))
+          )(instrument, range as HistoryRange);
           set.headers["cache-control"] = "public, max-age=300";
           return history;
         } catch {

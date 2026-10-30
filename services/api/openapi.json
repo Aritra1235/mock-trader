@@ -11250,7 +11250,7 @@
             "type": "string"
           },
           "source": {
-            "const": "Yahoo Finance"
+            "enum": ["Paytm Money", "Yahoo Finance"]
           },
           "interval": {
             "enum": ["15m", "1d"]

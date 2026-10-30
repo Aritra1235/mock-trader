@@ -3534,8 +3534,8 @@ export interface components {
     InstrumentHistoryResponse: {
       instrumentKey: string;
       symbol: string;
-      /** @constant */
-      source: "Yahoo Finance";
+      /** @enum {unknown} */
+      source: "Paytm Money" | "Yahoo Finance";
       /** @enum {unknown} */
       interval: "15m" | "1d";
       /** @enum {unknown} */

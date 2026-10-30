@@ -826,7 +826,7 @@ const document = {
         properties: {
           instrumentKey: { type: "string" },
           symbol: { type: "string" },
-          source: { const: "Yahoo Finance" },
+          source: { enum: ["Paytm Money", "Yahoo Finance"] },
           interval: { enum: ["15m", "1d"] },
           range: { enum: ["5d", "1mo", "6mo", "1y"] },
           bars: { type: "array", items: ref("HistoricalBar") },

@@ -203,7 +203,7 @@ contract.
 | W-03 | Fan out quotes by subscription key, including mode, not only instrument. | — | Backend | 🟢 Done | LTP subscribers never receive FULL events unless requested. |
 | W-04 | Add message IDs, stable error codes, heartbeat rules, and a documented reconnect/resubscribe protocol. | C-03 | Backend | 🟢 Done | Requests are correlated, errors are stable, and the frontend handoff guide documents reconnect/resubscribe behavior. |
 | W-05 | Restore active subscription leases after worker restart. | — | Backend | ⬜ Not started | Existing clients resume receiving data without manual resubscribe. |
-| W-06 | Decide and implement candle-history source. | D-01 | Product | ⚪ Deferred | Historical charts are outside the MVP contract. |
+| W-06 | Decide and implement candle-history source. | D-01 | Product | 🟢 Done | Paytm Money serves daily candles; Yahoo Finance serves intraday candles and fallback. |
 | W-07 | Remove raw provider payload from public quote events. | C-02 | Backend | 🟢 Done | Public events contain only the normalized schema. |
 | W-08 | Consolidate the two price-ingest worker implementations. | — | Backend | ⬜ Not started | One worker, one Redis contract, one deployment path, one set of docs. |
 

@@ -86,9 +86,23 @@ export class MarketDataService {
     };
   }
 
-  async getProviderChart(params: Record<string, string>) {
+  async getDailyChart(
+    instrument: InstrumentRecord,
+    fromDate: string,
+    toDate: string,
+  ) {
     const token = await this.sessionService.requireReadableToken();
-    return this.paytmClient.fetchRawChart(token, params);
+    return this.paytmClient.fetchDailyChart(token, {
+      symbol: instrument.symbol,
+      series: instrument.series ?? "EQ",
+      fromDate,
+      toDate,
+    });
+  }
+
+  async getSessionQuote(instrument: InstrumentRecord) {
+    const [envelope] = await this.getQuotes([instrument.instrumentKey], "FULL");
+    return envelope?.quote ?? null;
   }
 
   async refreshQuotes(preferences: SubscriptionPreference[]) {

@@ -65,21 +65,50 @@ export class PaytmHttpClient {
     });
   }
 
-  async fetchRawChart(jwtToken: string, params: Record<string, string>) {
-    const url = new URL(`${PAYTM_HOST}/data/v1/price-charts/sym`);
-    for (const [key, value] of Object.entries(params)) {
-      url.searchParams.set(key, value);
-    }
-
-    return this.fetchJson<Record<string, unknown>>(url.toString(), {
+  // Paytm serves bars newest-first by range: fromDate is the later day, toDate
+  // the earlier one, at most 89 days apart. NSE only; MINUTE stops in Feb 2023.
+  async fetchDailyChart(
+    jwtToken: string,
+    params: {
+      symbol: string;
+      series: string;
+      fromDate: string;
+      toDate: string;
+    },
+  ) {
+    const response = await this.send(`${PAYTM_HOST}/data/v1/price-charts/sym`, {
+      method: "POST",
       headers: {
+        "Content-Type": "application/json",
         "x-jwt-token": jwtToken,
       },
+      body: JSON.stringify({
+        ...params,
+        cont: "false",
+        exchange: "NSE",
+        expiry: null,
+        instType: "ES",
+        interval: "DAY",
+        monthId: null,
+        strike: null,
+      }),
+      signal: AbortSignal.timeout(8000),
     });
+
+    // A well-formed request with no bars (holiday, unknown symbol, or dates
+    // before listing) comes back as 405.
+    if (response.status === 405) {
+      return { data: [] } as Record<string, unknown>;
+    }
+    return this.readJson<Record<string, unknown>>(response);
   }
 
   private async fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
-    const response = await fetch(url, {
+    return this.readJson<T>(await this.send(url, init));
+  }
+
+  private send(url: string, init?: RequestInit) {
+    return fetch(url, {
       ...init,
       headers: {
         Accept: "application/json",
@@ -87,7 +116,9 @@ export class PaytmHttpClient {
         ...(init?.headers ?? {}),
       },
     });
+  }
 
+  private async readJson<T>(response: Response): Promise<T> {
     if (!response.ok) {
       const body = await response.text();
       throw new Error(
