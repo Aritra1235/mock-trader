@@ -279,7 +279,7 @@ function OrderForm({
         ? `${fmtQty(-held)} short · ${productLabel}`
         : "";
   const effect =
-    opening > 0
+    side === "sell" && opening > 0
       ? closing > 0
         ? `Sells ${fmtQty(closing)} held, then shorts ${fmtQty(opening)}`
         : `Opens a short of ${fmtQty(opening)}`
