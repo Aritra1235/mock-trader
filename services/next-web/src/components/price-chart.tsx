@@ -154,8 +154,12 @@ export function PriceChart({
       chart.setPeriod(
         interval === "15m"
           ? { span: 15, type: "minute" }
-          : { span: 1, type: "day" },
+          : interval === "1w"
+            ? { span: 1, type: "week" }
+            : { span: 1, type: "day" },
       );
+      // Fit the whole range, so a longer range actually shows more history.
+      chart.setBarSpace(element.clientWidth / candles.length);
       chart.setDataLoader({
         getBars: ({ callback }) => callback(candles, false),
       });

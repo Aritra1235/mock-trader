@@ -19,13 +19,20 @@ import { Empty } from "../bits";
 import { type Candle, PriceChart } from "../price-chart";
 import { useTrackedQuotes, useTrader } from "../trader-provider";
 
-type Range = "5d" | "1mo" | "6mo" | "1y";
+type Range = "5d" | "1mo" | "6mo" | "1y" | "5y" | "max";
 const ranges: { key: Range; label: string }[] = [
   { key: "5d", label: "5D" },
   { key: "1mo", label: "1M" },
   { key: "6mo", label: "6M" },
   { key: "1y", label: "1Y" },
+  { key: "5y", label: "5Y" },
+  { key: "max", label: "Max" },
 ];
+const intervalLabels = {
+  "15m": "15 min",
+  "1d": "Daily",
+  "1w": "Weekly",
+};
 
 export function InstrumentScreen({ instrumentId }: { instrumentId: string }) {
   const { remember } = useTrader();
@@ -104,7 +111,7 @@ function InstrumentView({ instrument }: { instrument: Instrument }) {
   const [history, setHistory] = useState<{
     status: "loading" | "ready" | "error";
     candles: Candle[];
-    interval: "15m" | "1d" | "1w";
+    interval: keyof typeof intervalLabels;
   }>({ status: "loading", candles: [], interval: "15m" });
 
   useEffect(() => {
@@ -271,8 +278,7 @@ function InstrumentView({ instrument }: { instrument: Instrument }) {
             ))}
           </fieldset>
           <span className="muted small">
-            {history.interval === "15m" ? "15 min" : "Daily"} candles · MA ·
-            Volume
+            {intervalLabels[history.interval]} candles · MA · Volume
           </span>
         </div>
         {history.status === "ready" ? (

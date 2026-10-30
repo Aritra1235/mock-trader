@@ -38,7 +38,7 @@ The watchlist is stored in the browser (`mock-trader-watchlist`, up to 50 instru
 
 When no live quote is available, prices fall back to the last daily close and are marked as such. Orders still require a fresh live quote; the order window explains why it is disabled.
 
-The chart uses [KLineChart](https://klinecharts.com/en-US/), an Apache-2.0 financial chart library. The API serves real exchange-specific historical OHLC bars: 15-minute candles for 5D and daily candles for 1M, 6M, and 1Y. The development data source is Yahoo Finance's chart endpoint, cached by the API for five minutes. It is an unofficial source; review data licensing and replace it with an approved feed before production use.
+The chart uses [KLineChart](https://klinecharts.com/en-US/), an Apache-2.0 financial chart library. The API serves real exchange-specific historical OHLC bars: 15-minute candles for 5D, daily candles for 1M to 5Y, and weekly candles for Max, cached for five minutes. Daily candles come from Paytm Money, with the live quote supplying today's bar. Yahoo Finance's unofficial chart endpoint serves intraday candles and any daily request Paytm cannot answer; Paytm has no minute candles after February 2023.
 
 API calls use the checked-in OpenAPI types and credentialed cookies. A verified sign-in is followed by `GET /api/v1/me`, which provisions the practice account. Order requests use a UUID `Idempotency-Key`; retries for the same confirmation reuse the key.
 
