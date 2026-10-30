@@ -26,8 +26,7 @@ export async function fetchHistoricalCandles(
   instrument: InstrumentRecord,
   range: HistoryRange,
 ): Promise<HistoricalCandles> {
-  const suffix = instrument.exchange === "BSE" ? "BO" : "NS";
-  const ticker = `${instrument.symbol}.${suffix}`;
+  const ticker = `${instrument.symbol}.NS`;
   const cacheKey = `${ticker}:${range}`;
   const cached = cache.get(cacheKey);
   if (cached && cached.until > Date.now()) return cached.value;

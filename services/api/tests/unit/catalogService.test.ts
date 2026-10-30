@@ -46,14 +46,17 @@ test("cached index rows are repaired before REST and socket resolution", async (
     const catalog = new CatalogService({} as PaytmHttpClient, path, []);
     expect(await catalog.loadSnapshot()).toBe(true);
     expect(catalog.resolve("NSE:INDEX:13")?.symbol).toBe("NIFTY");
-    expect(catalog.resolve("BSE:INDEX:51")?.symbol).toBe("SENSEX");
     expect(
-      catalog.resolvePreference({ instrumentKey: "BSE:INDEX:51" }, "QUOTE"),
+      catalog.resolvePreference({ instrumentKey: "NSE:INDEX:13" }, "QUOTE"),
     ).toMatchObject({
-      securityId: "51",
-      exchangeType: "BSE",
+      securityId: "13",
+      exchangeType: "NSE",
       scripType: "INDEX",
     });
+    // BSE rows in an older snapshot are dropped, not just hidden from search.
+    expect(catalog.resolve("BSE:INDEX:51")).toBeNull();
+    expect(catalog.resolve("51")).toBeNull();
+    expect(catalog.count()).toBe(1);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

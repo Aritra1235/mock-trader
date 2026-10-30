@@ -282,13 +282,13 @@ export function buildApp(deps: AppDependencies) {
         }
         if (
           instrument.scripType !== "EQUITY" ||
-          !["NSE", "BSE"].includes(instrument.exchange)
+          instrument.exchange !== "NSE"
         ) {
           set.status = 422;
           return apiError(
             request,
             "HISTORY_UNSUPPORTED",
-            "History is available for NSE and BSE equities only.",
+            "History is available for NSE equities only.",
           );
         }
         const range = typeof query.range === "string" ? query.range : "5d";

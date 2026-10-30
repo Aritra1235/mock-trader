@@ -12,6 +12,8 @@ import type {
   SubscriptionPreference,
 } from "../types/market";
 
+const SUPPORTED_EXCHANGE = "NSE";
+
 interface SearchOptions {
   q?: string;
   limit?: number;
@@ -50,7 +52,9 @@ export class CatalogService {
     for (const fileName of this.fileNames) {
       const csv = await this.client.fetchSecurityMaster(fileName);
       for (const record of parseSecurityMaster(csv)) {
-        merged.set(record.instrumentKey, record);
+        if (record.exchange === SUPPORTED_EXCHANGE) {
+          merged.set(record.instrumentKey, record);
+        }
       }
     }
 
@@ -213,20 +217,22 @@ export class CatalogService {
   private replaceRecords(records: InstrumentRecord[]) {
     // Older snapshots classified Paytm's instrument_type=I rows as equities.
     // Repair them on load as well as when the security master is refreshed.
-    records = records.map((record) =>
-      record.instrumentType === "I"
-        ? {
-            ...record,
-            instrumentKey: buildInstrumentKey(
-              record.exchange,
-              "INDEX",
-              record.securityId,
-            ),
-            scripType: "INDEX",
-            symbol: record.symbol || record.name.toUpperCase(),
-          }
-        : record,
-    );
+    records = records
+      .filter((record) => record.exchange === SUPPORTED_EXCHANGE)
+      .map((record) =>
+        record.instrumentType === "I"
+          ? {
+              ...record,
+              instrumentKey: buildInstrumentKey(
+                record.exchange,
+                "INDEX",
+                record.securityId,
+              ),
+              scripType: "INDEX",
+              symbol: record.symbol || record.name.toUpperCase(),
+            }
+          : record,
+      );
     this.instruments = new Map(
       records.map((record) => [record.instrumentKey, record]),
     );
