@@ -624,7 +624,7 @@ function WatchlistStep({ state, busy, first, onBack, save }: StepProps) {
     >
       <Question
         title="Follow a few stocks to start"
-        hint={`Pick at least one. You can search all NSE and BSE instruments once your account is open. ${picked.length} / ${options.maxWatchlist} selected.`}
+        hint={`Pick at least one. You can search all NSE instruments once your account is open. ${picked.length} / ${options.maxWatchlist} selected.`}
       >
         <div className="pick-grid">
           {options.suggestedInstruments.map((item) => {

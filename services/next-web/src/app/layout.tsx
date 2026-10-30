@@ -12,7 +12,7 @@ const sans = Inter({
 
 export const metadata: Metadata = {
   title: "Mock Trader",
-  description: "Practice trading on NSE and BSE with virtual money.",
+  description: "Practice trading on NSE with virtual money.",
 };
 
 export default function RootLayout({

@@ -34,7 +34,7 @@ A broker-style terminal: a persistent watchlist on the left, the active screen o
 - `/portfolio` Holdings: positions valued at the latest price, with totals
 - `/activity` Orders: order book, trade book, and `?tab=funds` for margin and the cash ledger
 
-The watchlist is stored in the browser (`mock-trader-watchlist`, up to 50 instruments, exact NSE/BSE listings). It starts with six NSE large caps and migrates the older `mock-trader-pins` symbol list. Press `/` to search; hover a row for Buy, Sell, chart, and remove.
+The watchlist is stored in the browser (`mock-trader-watchlist`, up to 50 instruments, exact NSE listings). It starts with six NSE large caps and migrates the older `mock-trader-pins` symbol list. Press `/` to search; hover a row for Buy, Sell, chart, and remove.
 
 When no live quote is available, prices fall back to the last daily close and are marked as such. Orders still require a fresh live quote; the order window explains why it is disabled.
 

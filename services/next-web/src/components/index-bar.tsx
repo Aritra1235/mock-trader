@@ -8,7 +8,7 @@ import { useTrackedQuotes, useTrader } from "./trader-provider";
 // Security IDs from the provider's security master, subscribed as indices.
 const indices = [
   { label: "NIFTY 50", key: "NSE:INDEX:13" },
-  { label: "SENSEX", key: "BSE:INDEX:51" },
+  { label: "BANK NIFTY", key: "NSE:INDEX:25" },
 ];
 const QUOTE_AGE_MS = 45_000;
 

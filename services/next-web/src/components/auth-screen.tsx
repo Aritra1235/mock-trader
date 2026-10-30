@@ -265,8 +265,8 @@ export function AuthScreen({
         <div className="auth-pitch">
           <h2>Practise trading Indian markets without risking a rupee.</h2>
           <p>
-            Live NSE and BSE prices, real order mechanics and a full portfolio,
-            all on virtual money.
+            Live NSE prices, real order mechanics and a full portfolio, all on
+            virtual money.
           </p>
         </div>
         <ol className="auth-steps">

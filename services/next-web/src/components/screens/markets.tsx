@@ -2,7 +2,7 @@
 
 import { Minus, Plus, Search } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { percent, price, signedPrice, tone } from "@/lib/format";
 import { type Instrument, instrumentHref } from "@/lib/market";
 import { Empty, PageHeader } from "../bits";
@@ -27,11 +27,8 @@ const popular = [
   "SUNPHARMA",
 ];
 
-type Exchange = "ALL" | "NSE" | "BSE";
-
 export function MarketsScreen() {
   const [query, setQuery] = useState("");
-  const [exchange, setExchange] = useState<Exchange>("ALL");
   const [featured, setFeatured] = useState<Instrument[] | null>(null);
   const { results, loading } = useInstrumentSearch(query, 40);
 
@@ -48,21 +45,12 @@ export function MarketsScreen() {
   }, []);
 
   const searching = query.trim().length > 0;
-  const rows = useMemo(
-    () =>
-      (searching ? results : (featured ?? [])).filter(
-        (x) => exchange === "ALL" || x.exchange === exchange,
-      ),
-    [searching, results, featured, exchange],
-  );
+  const rows = searching ? results : (featured ?? []);
   useTrackedQuotes(rows.map((x) => x.instrumentKey));
 
   return (
     <div className="screen">
-      <PageHeader
-        title="Markets"
-        meta="Search 90,000+ NSE and BSE instruments"
-      />
+      <PageHeader title="Markets" meta="Search 85,000+ NSE instruments" />
       <div className="toolbar">
         <label className="search-box">
           <Search size={16} aria-hidden="true" />
@@ -75,19 +63,6 @@ export function MarketsScreen() {
             spellCheck={false}
           />
         </label>
-        <fieldset className="segmented" aria-label="Exchange">
-          {(["ALL", "NSE", "BSE"] as const).map((x) => (
-            <button
-              key={x}
-              type="button"
-              aria-pressed={exchange === x}
-              className={exchange === x ? "on" : ""}
-              onClick={() => setExchange(x)}
-            >
-              {x === "ALL" ? "All" : x}
-            </button>
-          ))}
-        </fieldset>
       </div>
 
       <section className="panel flush">

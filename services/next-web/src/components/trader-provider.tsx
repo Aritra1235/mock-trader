@@ -155,7 +155,7 @@ function readSavedWatchlist(userId: string): Instrument[] | string[] | null {
     if (Array.isArray(saved)) {
       return saved
         .map(instrumentFrom)
-        .filter((x): x is Instrument => x !== null);
+        .filter((x): x is Instrument => x?.exchange === "NSE");
     }
     const legacy = JSON.parse(localStorage.getItem(LEGACY_PINS_KEY) ?? "null");
     if (Array.isArray(legacy) && legacy.every((x) => typeof x === "string"))
@@ -251,7 +251,7 @@ export function TraderProvider({ children }: { children: React.ReactNode }) {
       setOnboardingWatchlist(
         me.data.onboarding.watchlist
           .map(instrumentFrom)
-          .filter((x): x is Instrument => x !== null),
+          .filter((x): x is Instrument => x?.exchange === "NSE"),
       );
       setAuth("ready");
       if (!practice) return;
