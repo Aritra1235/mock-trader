@@ -56,6 +56,7 @@ export type Toast = {
 
 type Trader = {
   auth: AuthState;
+  userId: string;
   userName: string;
   userEmail: string;
   account: Account | null;
@@ -596,6 +597,7 @@ export function TraderProvider({ children }: { children: React.ReactNode }) {
 
   const value: Trader = {
     auth,
+    userId,
     userName,
     userEmail,
     account,

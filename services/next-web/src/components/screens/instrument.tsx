@@ -1,6 +1,6 @@
 "use client";
 
-import { Minus, Plus } from "lucide-react";
+import { ChartCandlestick, Minus, Plus } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "@/lib/api-client";
@@ -14,7 +14,12 @@ import {
   stamp,
   tone,
 } from "@/lib/format";
-import { type Instrument, instrumentFrom, num } from "@/lib/market";
+import {
+  type Instrument,
+  instrumentFrom,
+  instrumentHref,
+  num,
+} from "@/lib/market";
 import { Empty } from "../bits";
 import { type Candle, PriceChart } from "../price-chart";
 import { useTrackedQuotes, useTrader } from "../trader-provider";
@@ -277,9 +282,18 @@ function InstrumentView({ instrument }: { instrument: Instrument }) {
               </button>
             ))}
           </fieldset>
-          <span className="muted small">
-            {intervalLabels[history.interval]} candles · MA · Volume
-          </span>
+          <div className="chart-toolbar-end">
+            <span className="muted small">
+              {intervalLabels[history.interval]} candles · MA · Volume
+            </span>
+            <Link
+              href={`${instrumentHref(key)}/terminal`}
+              className="btn btn-ghost btn-sm"
+            >
+              <ChartCandlestick size={14} aria-hidden="true" />
+              Terminal
+            </Link>
+          </div>
         </div>
         {history.status === "ready" ? (
           <PriceChart

@@ -1252,6 +1252,11 @@ tr:focus-within .row-actions,
   padding: 10px 24px;
   border-bottom: 1px solid var(--border);
 }
+.chart-toolbar-end {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
 .chart-canvas {
   height: 480px;
   width: 100%;
@@ -1825,6 +1830,60 @@ tr:focus-within .row-actions,
   height: 30px;
   padding: 0 12px;
   font-size: 12.5px;
+}
+
+/* full-screen chart terminal */
+.chart-terminal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+}
+.chart-terminal-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 44px;
+  flex: none;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border);
+}
+.chart-terminal-quote {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  min-width: 0;
+  white-space: nowrap;
+}
+.chart-terminal-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+.chart-terminal-host {
+  flex: 1;
+  min-height: 0;
+}
+/* Vela writes its tokens inline, so matching the app's corners needs !important. */
+.vela-ui {
+  --vela-radius-sm: var(--radius) !important;
+  --vela-radius-md: var(--radius) !important;
+  --vela-radius-lg: var(--radius) !important;
+}
+/* Vela's menu layer loses its z-index on hover, dropping it under the chart canvas. */
+.vela-ui-layer {
+  z-index: var(--vela-z-menu) !important;
+}
+/* Vela's fixed tabs and session switch cover markets this app doesn't offer. */
+.vela-sp-tab[data-tab="crypto"],
+.vela-sp-tab[data-tab="futures"],
+.vela-sp-tab[data-tab="forex"],
+.vela-sp-tab[data-tab="commodities"],
+.vela-bb-session {
+  display: none !important;
 }
 
 /* account setup */
@@ -2425,6 +2484,10 @@ tr:focus-within .row-actions,
   }
   .chart-canvas {
     height: 360px;
+  }
+  .chart-terminal-quote .tag,
+  .chart-terminal-quote .num:last-child {
+    display: none;
   }
   .chart-toolbar .muted {
     display: none;

@@ -32,6 +32,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return <AuthScreen state={trader.auth} onSuccess={trader.refresh} />;
   if (trader.auth === "onboarding") return <Onboarding />;
 
+  // The terminal takes the whole window, and its keyboard shortcuts with it.
+  if (/^\/markets\/[^/]+\/terminal$/.test(pathname))
+    return (
+      <>
+        {children}
+        <OrderWindow />
+        <Toasts />
+      </>
+    );
+
   const active = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 

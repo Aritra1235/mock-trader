@@ -40,6 +40,8 @@ When no live quote is available, prices fall back to the last daily close and ar
 
 The chart uses [KLineChart](https://klinecharts.com/en-US/), an Apache-2.0 financial chart library. The API serves real exchange-specific historical OHLC bars: 15-minute candles for 5D, daily candles for 1M to 5Y, and weekly candles for Max, cached for five minutes. Daily candles come from Paytm Money, with the live quote supplying today's bar. Yahoo Finance's unofficial chart endpoint serves intraday candles and any daily request Paytm cannot answer; Paytm has no minute candles after February 2023.
 
+The full-screen terminal at `/markets/[id]/terminal` runs [Vela](https://velacharts.dev) by LuxAlgo (Apache-2.0; its attribution mark must stay on the chart or be replaced by an equivalent visible credit). `src/lib/nse-chart-provider.ts` connects it to `GET /market/instruments/{id}/candles` and the live quote stream. Drawings, indicators and layouts are saved in the browser per user.
+
 API calls use the checked-in OpenAPI types and credentialed cookies. A verified sign-in is followed by `GET /api/v1/me`, which provisions the practice account. Order requests use a UUID `Idempotency-Key`; retries for the same confirmation reuse the key.
 
 Run `bun run lint` and `bun run build` to check the frontend.
