@@ -1,7 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { apiClient, createIdempotencyKey } from "@/lib/api-client";
 import { quantity as fmtQty, percent, price, rupees, tone } from "@/lib/format";
 import {
@@ -58,8 +58,39 @@ function OrderForm({
   const [error, setError] = useState("");
   const requestKey = useRef<string | null>(null);
   const qtyInput = useRef<HTMLInputElement>(null);
+  const ticketBody = useRef<HTMLDivElement>(null);
+  const previousBodyHeight = useRef<number | null>(null);
 
-  useEffect(() => setSide(initialSide), [initialSide]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Measure after the order type or side changes the layout, before paint.
+  useLayoutEffect(() => {
+    const body = ticketBody.current;
+    const from = previousBodyHeight.current;
+    previousBodyHeight.current = null;
+    if (
+      !body ||
+      from === null ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    )
+      return;
+
+    const animation = body.animate(
+      [
+        { height: `${from}px`, overflow: "clip" },
+        {
+          height: `${body.getBoundingClientRect().height}px`,
+          overflow: "clip",
+        },
+      ],
+      { duration: 260, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+    );
+    return () => animation.cancel();
+  }, [orderType, side]);
+
+  useEffect(() => {
+    previousBodyHeight.current =
+      ticketBody.current?.getBoundingClientRect().height ?? null;
+    setSide(initialSide);
+  }, [initialSide]);
   useEffect(() => {
     qtyInput.current?.select();
   }, []);
@@ -328,6 +359,8 @@ function OrderForm({
                 value={s}
                 checked={side === s}
                 onChange={() => {
+                  previousBodyHeight.current =
+                    ticketBody.current?.getBoundingClientRect().height ?? null;
                   setSide(s);
                   reset();
                 }}
@@ -347,7 +380,7 @@ function OrderForm({
         </button>
       </header>
 
-      <div className="ticket-body">
+      <div ref={ticketBody} className="ticket-body">
         <div className="ticket-opts">
           <fieldset
             className="ticket-seg"
@@ -394,6 +427,9 @@ function OrderForm({
                   value={type}
                   checked={orderType === type}
                   onChange={() => {
+                    previousBodyHeight.current =
+                      ticketBody.current?.getBoundingClientRect().height ??
+                      null;
                     setOrderType(type);
                     if (type === "limit" && !limitPrice && ltp !== null) {
                       setLimitPrice(
