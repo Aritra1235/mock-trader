@@ -104,7 +104,7 @@ function InstrumentView({ instrument }: { instrument: Instrument }) {
   const [history, setHistory] = useState<{
     status: "loading" | "ready" | "error";
     candles: Candle[];
-    interval: "15m" | "1d";
+    interval: "15m" | "1d" | "1w";
   }>({ status: "loading", candles: [], interval: "15m" });
 
   useEffect(() => {

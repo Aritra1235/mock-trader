@@ -46,7 +46,7 @@ export function PriceChart({
 }: {
   symbol: string;
   candles: Candle[];
-  interval: "15m" | "1d";
+  interval: "15m" | "1d" | "1w";
 }) {
   const container = useRef<HTMLDivElement>(null);
   const { theme } = useTheme();

@@ -264,7 +264,7 @@ const document = {
         security,
         parameters: [
           { $ref: "#/components/parameters/InstrumentId" },
-          query("range", { enum: ["5d", "1mo", "6mo", "1y"] }),
+          query("range", { enum: ["5d", "1mo", "6mo", "1y", "5y", "max"] }),
         ],
         responses: {
           "200": jsonResponse("InstrumentHistoryResponse"),
@@ -827,8 +827,8 @@ const document = {
           instrumentKey: { type: "string" },
           symbol: { type: "string" },
           source: { enum: ["Paytm Money", "Yahoo Finance"] },
-          interval: { enum: ["15m", "1d"] },
-          range: { enum: ["5d", "1mo", "6mo", "1y"] },
+          interval: { enum: ["15m", "1d", "1w"] },
+          range: { enum: ["5d", "1mo", "6mo", "1y", "5y", "max"] },
           bars: { type: "array", items: ref("HistoricalBar") },
         },
       },

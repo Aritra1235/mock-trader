@@ -1,8 +1,16 @@
 import { log } from "../lib/log";
 import type { InstrumentRecord, QuotePayload } from "../types/market";
 
-export type HistoryRange = "5d" | "1mo" | "6mo" | "1y";
+export type HistoryRange = "5d" | "1mo" | "6mo" | "1y" | "5y" | "max";
 
+export const HISTORY_RANGES: HistoryRange[] = [
+  "5d",
+  "1mo",
+  "6mo",
+  "1y",
+  "5y",
+  "max",
+];
 export interface HistoricalBar {
   timestamp: number;
   open: number;
@@ -18,7 +26,7 @@ export interface HistoricalCandles {
   instrumentKey: string;
   symbol: string;
   source: HistorySource;
-  interval: "15m" | "1d";
+  interval: "15m" | "1d" | "1w";
   range: HistoryRange;
   bars: HistoricalBar[];
 }
@@ -39,10 +47,11 @@ const IST_OFFSET_MS = 330 * 60_000;
 export const CHART_HISTORY_START = Date.parse("2017-01-01T00:00:00+05:30");
 const PAYTM_WINDOW_DAYS = 80;
 const PAYTM_CONCURRENCY = 4;
-const RANGE_DAYS: Record<Exclude<HistoryRange, "5d">, number> = {
+const RANGE_DAYS: Record<Exclude<HistoryRange, "5d" | "max">, number> = {
   "1mo": 31,
   "6mo": 183,
   "1y": 366,
+  "5y": 1827,
 };
 const cache = new Map<string, { until: number; value: HistoricalCandles }>();
 const yahooCache = new Map<
@@ -70,20 +79,22 @@ export async function fetchHistoricalCandles(
           source: "Yahoo Finance" as const,
           bars: await fetchYahooBars(`${instrument.symbol}.NS`, "5d", "15m"),
         }
-      : await fetchDailyBars(
-          instrument,
-          now - RANGE_DAYS[range] * DAY_MS,
-          now,
-          paytm,
-        );
+      : range === "max"
+        ? await fetchDailyBars(instrument, CHART_HISTORY_START, now, paytm)
+        : await fetchDailyBars(
+            instrument,
+            now - RANGE_DAYS[range] * DAY_MS,
+            now,
+            paytm,
+          );
 
   const value: HistoricalCandles = {
     instrumentKey: instrument.instrumentKey,
     symbol: instrument.symbol,
     source: series.source,
-    interval: range === "5d" ? "15m" : "1d",
+    interval: range === "5d" ? "15m" : range === "max" ? "1w" : "1d",
     range,
-    bars: series.bars,
+    bars: range === "max" ? aggregateBars(series.bars, "W") : series.bars,
   };
   if (cache.size >= 500) {
     for (const [key, entry] of cache) {
@@ -197,6 +208,35 @@ async function fetchPaytmWindow(
 
 function istDayStart(timestamp: number) {
   return Date.parse(`${istDate(timestamp)}T00:00:00+05:30`);
+}
+
+function bucketStart(timestamp: number, timeframe: "W" | "M") {
+  const day = istDate(timestamp);
+  if (timeframe === "M")
+    return Date.parse(`${day.slice(0, 8)}01T00:00:00+05:30`);
+  const start = Date.parse(`${day}T00:00:00+05:30`);
+  const weekday = new Date(`${day}T00:00:00Z`).getUTCDay();
+  return start - ((weekday + 6) % 7) * DAY_MS;
+}
+
+export function aggregateBars(
+  bars: HistoricalBar[],
+  timeframe: "W" | "M",
+): HistoricalBar[] {
+  const buckets = new Map<number, HistoricalBar>();
+  for (const bar of bars) {
+    const timestamp = bucketStart(bar.timestamp, timeframe);
+    const bucket = buckets.get(timestamp);
+    if (!bucket) {
+      buckets.set(timestamp, { ...bar, timestamp });
+      continue;
+    }
+    bucket.high = Math.max(bucket.high, bar.high);
+    bucket.low = Math.min(bucket.low, bar.low);
+    bucket.close = bar.close;
+    bucket.volume += bar.volume;
+  }
+  return [...buckets.values()];
 }
 
 function istDate(timestamp: number) {

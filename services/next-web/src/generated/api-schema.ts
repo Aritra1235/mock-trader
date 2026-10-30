@@ -3537,9 +3537,9 @@ export interface components {
       /** @enum {unknown} */
       source: "Paytm Money" | "Yahoo Finance";
       /** @enum {unknown} */
-      interval: "15m" | "1d";
+      interval: "15m" | "1d" | "1w";
       /** @enum {unknown} */
-      range: "5d" | "1mo" | "6mo" | "1y";
+      range: "5d" | "1mo" | "6mo" | "1y" | "5y" | "max";
       bars: components["schemas"]["HistoricalBar"][];
     };
     QuotesResponse: {
@@ -8312,7 +8312,7 @@ export interface operations {
   getInstrumentHistory: {
     parameters: {
       query?: {
-        range?: "5d" | "1mo" | "6mo" | "1y";
+        range?: "5d" | "1mo" | "6mo" | "1y" | "5y" | "max";
       };
       header?: never;
       path: {

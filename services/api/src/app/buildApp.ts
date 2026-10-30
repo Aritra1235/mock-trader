@@ -20,6 +20,7 @@ import {
 import type { CatalogService } from "../services/catalogService";
 import {
   fetchHistoricalCandles,
+  HISTORY_RANGES,
   type HistoricalCandles,
   type HistoryRange,
 } from "../services/historicalMarketData";
@@ -292,12 +293,12 @@ export function buildApp(deps: AppDependencies) {
           );
         }
         const range = typeof query.range === "string" ? query.range : "5d";
-        if (!["5d", "1mo", "6mo", "1y"].includes(range)) {
+        if (!HISTORY_RANGES.includes(range as HistoryRange)) {
           set.status = 400;
           return apiError(
             request,
             "INVALID_RANGE",
-            "Choose 5d, 1mo, 6mo, or 1y.",
+            "Choose 5d, 1mo, 6mo, 1y, 5y, or max.",
           );
         }
         try {

@@ -1,5 +1,6 @@
 import { afterEach, expect, spyOn, test } from "bun:test";
 import {
+  aggregateBars,
   fetchHistoricalCandles,
   type PaytmHistorySource,
   parsePaytmBars,
@@ -250,4 +251,80 @@ test("15-minute history never asks Paytm", async () => {
   );
 
   expect(intraday).toMatchObject({ source: "Yahoo Finance", interval: "15m" });
+});
+
+test("finished history windows are reused across ranges", async () => {
+  const windows = new Set<string>();
+  let requests = 0;
+  const source = paytm({
+    getDailyChart: async (_, fromDate) => {
+      requests += 1;
+      windows.add(fromDate);
+      const [year, month, day] = fromDate.split("-");
+      return {
+        data: [[`${day}-${month}-${year} 00:00`, 100, 105, 99, 103, 200]],
+      };
+    },
+  });
+
+  await fetchHistoricalCandles(instrument("REUSE"), "5y", source);
+  const first = requests;
+  await fetchHistoricalCandles(instrument("REUSE"), "1y", source);
+
+  expect(first).toBe(windows.size);
+  expect(requests).toBe(first);
+});
+
+test("the longest range is served as weekly candles", async () => {
+  const history = await fetchHistoricalCandles(
+    instrument("WEEKLY"),
+    "max",
+    paytm({
+      getDailyChart: async (_, fromDate) => {
+        const [year, month, day] = fromDate.split("-");
+        return {
+          data: [[`${day}-${month}-${year} 00:00`, 100, 105, 99, 103, 200]],
+        };
+      },
+    }),
+  );
+
+  expect(history.interval).toBe("1w");
+  for (const bar of history.bars) {
+    expect(new Date(bar.timestamp + 330 * 60_000).getUTCDay()).toBe(1);
+  }
+});
+
+test("weekly and monthly candles roll daily bars up in IST", () => {
+  const day = (date: string, close: number, volume: number) => ({
+    timestamp: Date.parse(`${date}T00:00:00+05:30`),
+    open: close - 1,
+    high: close + 1,
+    low: close - 2,
+    close,
+    volume,
+  });
+  const bars = [
+    day("2026-10-23", 100, 10),
+    day("2026-10-26", 110, 20),
+    day("2026-10-30", 90, 30),
+    day("2026-11-02", 95, 40),
+  ];
+
+  expect(aggregateBars(bars, "W")).toEqual([
+    { ...day("2026-10-19", 100, 10), open: 99, high: 101, low: 98 },
+    {
+      timestamp: Date.parse("2026-10-26T00:00:00+05:30"),
+      open: 109,
+      high: 111,
+      low: 88,
+      close: 90,
+      volume: 50,
+    },
+    { ...day("2026-11-02", 95, 40) },
+  ]);
+  expect(aggregateBars(bars, "M").map((bar) => bar.volume)).toEqual([60, 40]);
+  expect(aggregateBars(bars, "M")[0].timestamp).toBe(
+    Date.parse("2026-10-01T00:00:00+05:30"),
+  );
 });

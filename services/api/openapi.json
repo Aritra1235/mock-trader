@@ -9796,7 +9796,7 @@
             "in": "query",
             "required": false,
             "schema": {
-              "enum": ["5d", "1mo", "6mo", "1y"]
+              "enum": ["5d", "1mo", "6mo", "1y", "5y", "max"]
             }
           }
         ],
@@ -11253,10 +11253,10 @@
             "enum": ["Paytm Money", "Yahoo Finance"]
           },
           "interval": {
-            "enum": ["15m", "1d"]
+            "enum": ["15m", "1d", "1w"]
           },
           "range": {
-            "enum": ["5d", "1mo", "6mo", "1y"]
+            "enum": ["5d", "1mo", "6mo", "1y", "5y", "max"]
           },
           "bars": {
             "type": "array",
