@@ -1,3 +1,5 @@
 allowBuilds:
   msw: true
   sharp: true
+minimumReleaseAgeExclude:
+  - '@luxalgo/vela@0.9.3'
