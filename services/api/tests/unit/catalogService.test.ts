@@ -57,6 +57,14 @@ test("cached index rows are repaired before REST and socket resolution", async (
     expect(catalog.resolve("BSE:INDEX:51")).toBeNull();
     expect(catalog.resolve("51")).toBeNull();
     expect(catalog.count()).toBe(1);
+    expect(catalog.chartSymbols()).toEqual([
+      {
+        instrumentKey: "NSE:INDEX:13",
+        symbol: "NIFTY",
+        name: "NIFTY",
+        scripType: "INDEX",
+      },
+    ]);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

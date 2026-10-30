@@ -9826,6 +9826,109 @@
         }
       }
     },
+    "/api/v1/market/instruments/{id}/candles": {
+      "get": {
+        "tags": ["Market Data"],
+        "operationId": "getInstrumentCandles",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/InstrumentId"
+          },
+          {
+            "name": "timeframe",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": ["1", "5", "15", "30", "60", "D", "W", "M"]
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "Unix milliseconds"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "Unix milliseconds"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstrumentCandlesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "502": {
+            "description": "Historical price source unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/market/symbols": {
+      "get": {
+        "tags": ["Market Data"],
+        "operationId": "getChartSymbols",
+        "description": "Requires a signed-in user who has completed onboarding.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChartSymbolsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
     "/api/v1/market/quotes": {
       "get": {
         "tags": ["Market Data"],
@@ -11262,6 +11365,51 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/HistoricalBar"
+            }
+          }
+        }
+      },
+      "InstrumentCandlesResponse": {
+        "type": "object",
+        "required": ["instrumentKey", "symbol", "source", "timeframe", "bars"],
+        "properties": {
+          "instrumentKey": {
+            "type": "string"
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "source": {
+            "enum": ["Paytm Money", "Yahoo Finance"]
+          },
+          "timeframe": {
+            "enum": ["1", "5", "15", "30", "60", "D", "W", "M"]
+          },
+          "bars": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HistoricalBar"
+            }
+          }
+        }
+      },
+      "ChartSymbolsResponse": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["instrumentKey", "symbol", "name", "scripType"],
+          "properties": {
+            "instrumentKey": {
+              "type": "string"
+            },
+            "symbol": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "scripType": {
+              "type": "string"
             }
           }
         }

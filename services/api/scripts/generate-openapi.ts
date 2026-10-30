@@ -275,6 +275,35 @@ const document = {
         },
       },
     },
+    "/api/v1/market/instruments/{id}/candles": {
+      get: {
+        tags: ["Market Data"],
+        operationId: "getInstrumentCandles",
+        security,
+        parameters: [
+          { $ref: "#/components/parameters/InstrumentId" },
+          query(
+            "timeframe",
+            { enum: ["1", "5", "15", "30", "60", "D", "W", "M"] },
+            true,
+          ),
+          query("from", { type: "integer", description: "Unix milliseconds" }),
+          query("to", { type: "integer", description: "Unix milliseconds" }),
+        ],
+        responses: {
+          "200": jsonResponse("InstrumentCandlesResponse"),
+          "400": errorResponses["400"],
+          "404": errorResponses["404"],
+          "422": errorResponses["422"],
+          "502": { description: "Historical price source unavailable" },
+        },
+      },
+    },
+    "/api/v1/market/symbols": publicGet(
+      "getChartSymbols",
+      "ChartSymbolsResponse",
+      [],
+    ),
     "/api/v1/market/quotes": publicGet("getQuotes", "QuotesResponse", [
       query("ids", { type: "string" }, true),
       query("mode", { enum: ["LTP", "QUOTE", "FULL"] }),
@@ -830,6 +859,30 @@ const document = {
           interval: { enum: ["15m", "1d", "1w"] },
           range: { enum: ["5d", "1mo", "6mo", "1y", "5y", "max"] },
           bars: { type: "array", items: ref("HistoricalBar") },
+        },
+      },
+      InstrumentCandlesResponse: {
+        type: "object",
+        required: ["instrumentKey", "symbol", "source", "timeframe", "bars"],
+        properties: {
+          instrumentKey: { type: "string" },
+          symbol: { type: "string" },
+          source: { enum: ["Paytm Money", "Yahoo Finance"] },
+          timeframe: { enum: ["1", "5", "15", "30", "60", "D", "W", "M"] },
+          bars: { type: "array", items: ref("HistoricalBar") },
+        },
+      },
+      ChartSymbolsResponse: {
+        type: "array",
+        items: {
+          type: "object",
+          required: ["instrumentKey", "symbol", "name", "scripType"],
+          properties: {
+            instrumentKey: { type: "string" },
+            symbol: { type: "string" },
+            name: { type: "string" },
+            scripType: { type: "string" },
+          },
         },
       },
       QuotesResponse: { type: "object", additionalProperties: true },

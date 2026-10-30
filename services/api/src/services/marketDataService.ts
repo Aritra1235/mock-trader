@@ -92,9 +92,11 @@ export class MarketDataService {
     toDate: string,
   ) {
     const token = await this.sessionService.requireReadableToken();
+    const index = instrument.scripType === "INDEX";
     return this.paytmClient.fetchDailyChart(token, {
       symbol: instrument.symbol,
-      series: instrument.series ?? "EQ",
+      series: index ? null : (instrument.series ?? "EQ"),
+      instType: index ? "I" : "ES",
       fromDate,
       toDate,
     });

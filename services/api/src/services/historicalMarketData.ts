@@ -2,6 +2,7 @@ import { log } from "../lib/log";
 import type { InstrumentRecord, QuotePayload } from "../types/market";
 
 export type HistoryRange = "5d" | "1mo" | "6mo" | "1y" | "5y" | "max";
+export type ChartTimeframe = "1" | "5" | "15" | "30" | "60" | "D" | "W" | "M";
 
 export const HISTORY_RANGES: HistoryRange[] = [
   "5d",
@@ -11,6 +12,17 @@ export const HISTORY_RANGES: HistoryRange[] = [
   "5y",
   "max",
 ];
+export const CHART_TIMEFRAMES: ChartTimeframe[] = [
+  "1",
+  "5",
+  "15",
+  "30",
+  "60",
+  "D",
+  "W",
+  "M",
+];
+
 export interface HistoricalBar {
   timestamp: number;
   open: number;
@@ -28,6 +40,14 @@ export interface HistoricalCandles {
   source: HistorySource;
   interval: "15m" | "1d" | "1w";
   range: HistoryRange;
+  bars: HistoricalBar[];
+}
+
+export interface ChartCandles {
+  instrumentKey: string;
+  symbol: string;
+  source: HistorySource;
+  timeframe: ChartTimeframe;
   bars: HistoricalBar[];
 }
 
@@ -53,6 +73,23 @@ const RANGE_DAYS: Record<Exclude<HistoryRange, "5d" | "max">, number> = {
   "1y": 366,
   "5y": 1827,
 };
+// Paytm's minute bars stop in February 2023, so intraday stays on Yahoo.
+const YAHOO_INTRADAY: Record<
+  Exclude<ChartTimeframe, "D" | "W" | "M">,
+  { range: string; interval: string }
+> = {
+  "1": { range: "7d", interval: "1m" },
+  "5": { range: "60d", interval: "5m" },
+  "15": { range: "60d", interval: "15m" },
+  "30": { range: "60d", interval: "30m" },
+  "60": { range: "2y", interval: "60m" },
+};
+// Paytm matches index names loosely, so only these exact mappings are charted.
+const INDEX_YAHOO_TICKERS: Record<string, string> = {
+  "13": "^NSEI",
+  "25": "^NSEBANK",
+};
+
 const cache = new Map<string, { until: number; value: HistoricalCandles }>();
 const yahooCache = new Map<
   string,
@@ -62,6 +99,12 @@ const paytmWindows = new Map<
   string,
   { until: number; value: HistoricalBar[] }
 >();
+
+export function supportsCharts(instrument: InstrumentRecord) {
+  if (instrument.scripType === "INDEX")
+    return instrument.securityId in INDEX_YAHOO_TICKERS;
+  return ["EQUITY", "ETF"].includes(instrument.scripType);
+}
 
 export async function fetchHistoricalCandles(
   instrument: InstrumentRecord,
@@ -77,7 +120,7 @@ export async function fetchHistoricalCandles(
     range === "5d"
       ? {
           source: "Yahoo Finance" as const,
-          bars: await fetchYahooBars(`${instrument.symbol}.NS`, "5d", "15m"),
+          bars: await fetchYahooBars(yahooTicker(instrument), "5d", "15m"),
         }
       : range === "max"
         ? await fetchDailyBars(instrument, CHART_HISTORY_START, now, paytm)
@@ -106,13 +149,51 @@ export async function fetchHistoricalCandles(
   return value;
 }
 
+export async function fetchChartCandles(
+  instrument: InstrumentRecord,
+  timeframe: ChartTimeframe,
+  from: number,
+  to: number,
+  paytm?: PaytmHistorySource,
+): Promise<ChartCandles> {
+  const series =
+    timeframe === "D" || timeframe === "W" || timeframe === "M"
+      ? await fetchDailyBars(
+          instrument,
+          timeframe === "D" ? from : bucketStart(from, timeframe),
+          to,
+          paytm,
+        )
+      : {
+          source: "Yahoo Finance" as const,
+          bars: await fetchYahooBars(
+            yahooTicker(instrument),
+            YAHOO_INTRADAY[timeframe].range,
+            YAHOO_INTRADAY[timeframe].interval,
+          ),
+        };
+
+  return {
+    instrumentKey: instrument.instrumentKey,
+    symbol: instrument.symbol,
+    source: series.source,
+    timeframe,
+    bars:
+      timeframe === "W" || timeframe === "M"
+        ? aggregateBars(series.bars, timeframe)
+        : series.bars.filter(
+            (bar) => bar.timestamp >= from && bar.timestamp <= to,
+          ),
+  };
+}
+
 async function fetchDailyBars(
   instrument: InstrumentRecord,
   from: number,
   to: number,
   paytm?: PaytmHistorySource,
 ): Promise<{ source: HistorySource; bars: HistoricalBar[] }> {
-  if (paytm) {
+  if (paytm && instrument.scripType !== "ETF") {
     try {
       const bars = await fetchPaytmDailyBars(instrument, from, to, paytm);
       if (bars.length > 0) return { source: "Paytm Money", bars };
@@ -123,7 +204,7 @@ async function fetchDailyBars(
       });
     }
   }
-  const bars = await fetchYahooBars(`${instrument.symbol}.NS`, "10y", "1d");
+  const bars = await fetchYahooBars(yahooTicker(instrument), "10y", "1d");
   return {
     source: "Yahoo Finance",
     bars: bars
@@ -239,6 +320,14 @@ export function aggregateBars(
   return [...buckets.values()];
 }
 
+function yahooTicker(instrument: InstrumentRecord) {
+  return (
+    (instrument.scripType === "INDEX" &&
+      INDEX_YAHOO_TICKERS[instrument.securityId]) ||
+    `${instrument.symbol}.NS`
+  );
+}
+
 function istDate(timestamp: number) {
   return new Date(timestamp + IST_OFFSET_MS).toISOString().slice(0, 10);
 }
@@ -248,7 +337,9 @@ export function sessionBar(quote: QuotePayload): HistoricalBar | null {
   const high = quote.ohlc?.high;
   const low = quote.ohlc?.low;
   const close = quote.lastPrice;
-  const tradedAt = quote.lastTradeTime ? Date.parse(quote.lastTradeTime) : NaN;
+  // Indices have no trades, only update times.
+  const asOf = quote.lastTradeTime ?? quote.lastUpdateTime;
+  const tradedAt = asOf ? Date.parse(asOf) : NaN;
   if (!open || !high || !low || !close || Number.isNaN(tradedAt)) return null;
   return {
     timestamp: Date.parse(`${istDate(tradedAt)}T00:00:00+05:30`),

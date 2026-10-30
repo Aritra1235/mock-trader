@@ -11,6 +11,7 @@ import type {
   MarketMode,
   SubscriptionPreference,
 } from "../types/market";
+import { supportsCharts } from "./historicalMarketData";
 
 const SUPPORTED_EXCHANGE = "NSE";
 
@@ -108,6 +109,17 @@ export class CatalogService {
     }
 
     return this.search({ q: value, limit: 1 })[0] ?? null;
+  }
+
+  chartSymbols() {
+    return Array.from(this.instruments.values())
+      .filter(supportsCharts)
+      .map(({ instrumentKey, symbol, name, scripType }) => ({
+        instrumentKey,
+        symbol,
+        name,
+        scripType,
+      }));
   }
 
   search(options: SearchOptions) {

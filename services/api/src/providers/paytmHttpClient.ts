@@ -71,7 +71,8 @@ export class PaytmHttpClient {
     jwtToken: string,
     params: {
       symbol: string;
-      series: string;
+      series: string | null;
+      instType: "ES" | "I";
       fromDate: string;
       toDate: string;
     },
@@ -87,7 +88,6 @@ export class PaytmHttpClient {
         cont: "false",
         exchange: "NSE",
         expiry: null,
-        instType: "ES",
         interval: "DAY",
         monthId: null,
         strike: null,

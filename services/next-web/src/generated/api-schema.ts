@@ -3048,6 +3048,39 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/market/instruments/{id}/candles": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["getInstrumentCandles"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/market/symbols": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description Requires a signed-in user who has completed onboarding. */
+    get: operations["getChartSymbols"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/market/quotes": {
     parameters: {
       query?: never;
@@ -3542,6 +3575,21 @@ export interface components {
       range: "5d" | "1mo" | "6mo" | "1y" | "5y" | "max";
       bars: components["schemas"]["HistoricalBar"][];
     };
+    InstrumentCandlesResponse: {
+      instrumentKey: string;
+      symbol: string;
+      /** @enum {unknown} */
+      source: "Paytm Money" | "Yahoo Finance";
+      /** @enum {unknown} */
+      timeframe: "1" | "5" | "15" | "30" | "60" | "D" | "W" | "M";
+      bars: components["schemas"]["HistoricalBar"][];
+    };
+    ChartSymbolsResponse: {
+      instrumentKey: string;
+      symbol: string;
+      name: string;
+      scripType: string;
+    }[];
     QuotesResponse: {
       [key: string]: unknown;
     };
@@ -8341,6 +8389,66 @@ export interface operations {
         };
         content?: never;
       };
+    };
+  };
+  getInstrumentCandles: {
+    parameters: {
+      query: {
+        timeframe: "1" | "5" | "15" | "30" | "60" | "D" | "W" | "M";
+        from?: number;
+        to?: number;
+      };
+      header?: never;
+      path: {
+        id: components["parameters"]["InstrumentId"];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["InstrumentCandlesResponse"];
+        };
+      };
+      400: components["responses"]["InvalidRequest"];
+      404: components["responses"]["NotFound"];
+      422: components["responses"]["Unprocessable"];
+      /** @description Historical price source unavailable */
+      502: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getChartSymbols: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChartSymbolsResponse"];
+        };
+      };
+      400: components["responses"]["InvalidRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
     };
   };
   getQuotes: {

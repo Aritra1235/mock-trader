@@ -1,11 +1,13 @@
 import { afterEach, expect, spyOn, test } from "bun:test";
 import {
   aggregateBars,
+  fetchChartCandles,
   fetchHistoricalCandles,
   type PaytmHistorySource,
   parsePaytmBars,
   parseYahooBars,
   sessionBar,
+  supportsCharts,
 } from "../../src/services/historicalMarketData";
 import type { InstrumentRecord, QuotePayload } from "../../src/types/market";
 
@@ -237,20 +239,27 @@ test("rejects Paytm responses that mix several securities on one date", async ()
   expect(history.source).toBe("Yahoo Finance");
 });
 
-test("15-minute history never asks Paytm", async () => {
+test("15-minute history and ETFs never ask Paytm", async () => {
   stubYahoo();
+  const unused = paytm({
+    getDailyChart: async () => {
+      throw new Error("should not be called");
+    },
+  });
 
   const intraday = await fetchHistoricalCandles(
     instrument("INTRADAY"),
     "5d",
-    paytm({
-      getDailyChart: async () => {
-        throw new Error("should not be called");
-      },
-    }),
+    unused,
+  );
+  const etf = await fetchHistoricalCandles(
+    { ...instrument("NIFTYBEES"), scripType: "ETF" },
+    "1mo",
+    unused,
   );
 
   expect(intraday).toMatchObject({ source: "Yahoo Finance", interval: "15m" });
+  expect(etf.source).toBe("Yahoo Finance");
 });
 
 test("finished history windows are reused across ranges", async () => {
@@ -326,5 +335,52 @@ test("weekly and monthly candles roll daily bars up in IST", () => {
   expect(aggregateBars(bars, "M").map((bar) => bar.volume)).toEqual([60, 40]);
   expect(aggregateBars(bars, "M")[0].timestamp).toBe(
     Date.parse("2026-10-01T00:00:00+05:30"),
+  );
+});
+
+test("intraday candles come from Yahoo and honor the requested window", async () => {
+  const yahoo = stubYahoo();
+
+  const inside = await fetchChartCandles(
+    instrument("WINDOW"),
+    "5",
+    0,
+    Date.now(),
+    paytm(),
+  );
+  const outside = await fetchChartCandles(
+    instrument("WINDOW"),
+    "5",
+    2_000_000,
+    Date.now(),
+    paytm(),
+  );
+
+  expect(inside).toMatchObject({ source: "Yahoo Finance", timeframe: "5" });
+  expect(inside.bars).toHaveLength(1);
+  expect(outside.bars).toHaveLength(0);
+  expect(String(yahoo.mock.calls[0][0])).toContain("interval=5m");
+  expect(yahoo).toHaveBeenCalledTimes(1);
+});
+
+test("indices chart only under exact Yahoo tickers", async () => {
+  const yahoo = stubYahoo();
+  const index = (securityId: string) =>
+    ({
+      instrumentKey: `NSE:INDEX:${securityId}`,
+      symbol: "NIFTY",
+      securityId,
+      exchange: "NSE",
+      scripType: "INDEX",
+    }) as InstrumentRecord;
+
+  await fetchHistoricalCandles(index("25"), "5d");
+
+  expect(String(yahoo.mock.calls[0][0])).toContain("%5ENSEBANK");
+  expect(supportsCharts(index("25"))).toBe(true);
+  expect(supportsCharts(index("21"))).toBe(false);
+  expect(supportsCharts(instrument("TCS"))).toBe(false);
+  expect(supportsCharts({ ...instrument("TCS"), scripType: "EQUITY" })).toBe(
+    true,
   );
 });

@@ -19,10 +19,15 @@ import {
 } from "../services/authSessionService";
 import type { CatalogService } from "../services/catalogService";
 import {
+  CHART_HISTORY_START,
+  CHART_TIMEFRAMES,
+  type ChartTimeframe,
+  fetchChartCandles,
   fetchHistoricalCandles,
   HISTORY_RANGES,
   type HistoricalCandles,
   type HistoryRange,
+  supportsCharts,
 } from "../services/historicalMarketData";
 import type { MarketDataService } from "../services/marketDataService";
 import {
@@ -52,6 +57,7 @@ export interface AppDependencies {
     instrument: NonNullable<ReturnType<CatalogService["resolve"]>>,
     range: HistoryRange,
   ) => Promise<HistoricalCandles>;
+  candles?: typeof fetchChartCandles;
 }
 
 const betterAuthView = (context: Context) => {
@@ -281,15 +287,12 @@ export function buildApp(deps: AppDependencies) {
             "Instrument was not found.",
           );
         }
-        if (
-          instrument.scripType !== "EQUITY" ||
-          instrument.exchange !== "NSE"
-        ) {
+        if (!supportsCharts(instrument)) {
           set.status = 422;
           return apiError(
             request,
             "HISTORY_UNSUPPORTED",
-            "History is available for NSE equities only.",
+            "History is available for NSE equities, ETFs, NIFTY and BANKNIFTY only.",
           );
         }
         const range = typeof query.range === "string" ? query.range : "5d";
@@ -319,6 +322,66 @@ export function buildApp(deps: AppDependencies) {
         }
       },
     )
+    .get(
+      `/api/${apiVersion}/market/instruments/:id/candles`,
+      async ({ params, query, request, set }) => {
+        const instrument = deps.catalog.resolve(params.id);
+        if (!instrument) {
+          set.status = 404;
+          return apiError(
+            request,
+            "INSTRUMENT_NOT_FOUND",
+            "Instrument was not found.",
+          );
+        }
+        if (!supportsCharts(instrument)) {
+          set.status = 422;
+          return apiError(
+            request,
+            "HISTORY_UNSUPPORTED",
+            "History is available for NSE equities, ETFs, NIFTY and BANKNIFTY only.",
+          );
+        }
+        const timeframe = query.timeframe;
+        const to = Number(query.to ?? Date.now());
+        const from = Number(query.from ?? CHART_HISTORY_START);
+        if (
+          !CHART_TIMEFRAMES.includes(timeframe as ChartTimeframe) ||
+          !Number.isFinite(from) ||
+          !Number.isFinite(to) ||
+          from > to
+        ) {
+          set.status = 400;
+          return apiError(
+            request,
+            "INVALID_CANDLE_QUERY",
+            "Choose a timeframe of 1, 5, 15, 30, 60, D, W, or M with from <= to.",
+          );
+        }
+        try {
+          const candles = await (deps.candles ?? fetchChartCandles)(
+            instrument,
+            timeframe as ChartTimeframe,
+            from,
+            to,
+            deps.marketData,
+          );
+          set.headers["cache-control"] = "private, max-age=30";
+          return candles;
+        } catch {
+          set.status = 502;
+          return apiError(
+            request,
+            "HISTORY_UNAVAILABLE",
+            "Historical prices are temporarily unavailable.",
+          );
+        }
+      },
+    )
+    .get(`/api/${apiVersion}/market/symbols`, ({ set }) => {
+      set.headers["cache-control"] = "private, max-age=3600";
+      return deps.catalog.chartSymbols();
+    })
     .get(
       `/api/${apiVersion}/market/quotes`,
       async ({ query, request, set }) => {
